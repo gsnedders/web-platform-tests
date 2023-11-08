@@ -17,6 +17,7 @@ here = os.path.dirname(__file__)
 
 from .base import (CallbackHandler,
                    CrashtestExecutor,
+                   ExecutorException,
                    RefTestExecutor,
                    RefTestImplementation,
                    TestharnessExecutor,
@@ -888,6 +889,8 @@ class ExecuteAsyncScriptRun(TimedRunner):
         except errors.NoSuchWindowException:
             self.logger.info("NoSuchWindowException on command, setting status to CRASH")
             self.result = False, ("CRASH", None)
+        except ExecutorException as e:
+            self.result = False, (e.status, e.message)
         except Exception as e:
             if isinstance(e, errors.JavascriptException) and str(e).startswith("Document was unloaded"):
                 message = "Document unloaded; maybe test navigated the top-level-browsing context?"
@@ -1030,6 +1033,7 @@ class MarionetteRefTestExecutor(RefTestExecutor):
                                  screenshot_cache=screenshot_cache,
                                  timeout_multiplier=timeout_multiplier,
                                  debug_info=debug_info)
+        reftest_internal = False
         self.protocol = MarionetteProtocol(self, browser, capabilities,
                                            timeout_multiplier, kwargs["e10s"],
                                            ccov)
@@ -1051,7 +1055,7 @@ class MarionetteRefTestExecutor(RefTestExecutor):
         with open(os.path.join(here, "reftest.js")) as f:
             self.script = f.read()
         with open(os.path.join(here, "test-wait.js")) as f:
-            self.wait_script = f.read() % {"classname": "reftest-wait"}
+            self.wait_script = f.read()
 
     def get_implementation(self, reftest_internal):
         return (InternalRefTestImplementation if reftest_internal
@@ -1142,7 +1146,24 @@ class MarionetteRefTestExecutor(RefTestExecutor):
     def _screenshot(self, protocol, url, timeout):
         protocol.marionette.navigate(url)
 
-        protocol.base.execute_script(self.wait_script, asynchronous=True)
+        result = protocol.base.execute_script(
+            self.wait_script
+            % {
+                "classname": "reftest-wait",
+                "timeout": timeout,
+            },
+            asynchronous=True,
+        )
+
+        self.logger.debug(f"screenshot result: {result!r}");
+        if result == "ready":
+            pass
+        elif result == "timeout":
+            raise ExecutorException("TIMEOUT", "")
+        elif result == "error":
+            raise ExecutorException("ERROR", "")
+        else:
+            raise ValueError(f"unknown script response {result!r}")
 
         screenshot = protocol.marionette.screenshot(full=False)
         # strip off the data:img/png, part of the url
@@ -1236,7 +1257,7 @@ class MarionetteCrashtestExecutor(CrashtestExecutor):
         self.debug = debug
 
         with open(os.path.join(here, "test-wait.js")) as f:
-            self.wait_script = f.read() % {"classname": "test-wait"}
+            self.wait_script = f.read()
 
         if marionette is None:
             do_delayed_imports()
@@ -1277,7 +1298,10 @@ class MarionetteCrashtestExecutor(CrashtestExecutor):
             self.protocol.coverage.reset()
 
         protocol.base.load(url)
-        protocol.base.execute_script(self.wait_script, asynchronous=True)
+        result = protocol.base.execute_script(
+            self.wait_script % {"classname": "test-wait", "timeout": timeout},
+            asynchronous=True,
+        )
 
         if self.protocol.coverage.is_enabled:
             self.protocol.coverage.dump()

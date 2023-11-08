@@ -2,6 +2,35 @@ var callback = arguments[arguments.length - 1];
 var observer = null;
 var root = document.documentElement;
 
+var error_handler = function(error, message, stack) {
+  callback("error");
+};
+
+addEventListener("error", function(e) {
+    var message = e.message;
+    var stack;
+    if (e.error && e.error.stack) {
+        stack = e.error.stack;
+    } else {
+        stack = e.filename + ":" + e.lineno + ":" + e.colno;
+    }
+    error_handler(e.error, message, stack);
+}, false);
+
+addEventListener("unhandledrejection", function(e) {
+    var message;
+    if (e.reason && e.reason.message) {
+        message = "Unhandled rejection: " + e.reason.message;
+    } else {
+        message = "Unhandled rejection";
+    }
+    var stack;
+    if (e.reason && e.reason.stack) {
+        stack = e.reason.stack;
+    }
+    error_handler(e.reason, message, stack);
+}, false);
+ 
 function wait_load() {
   if (Document.prototype.hasOwnProperty("fonts")) {
     document.fonts.ready.then(wait_paints);
@@ -44,9 +73,16 @@ function screenshot_if_ready() {
   if (observer !== null) {
     observer.disconnect();
   }
-  callback();
+  callback("ready");
 }
 
+setTimeout(function() {
+  removeEventListener('load', wait_load);
+  if (observer !== null) {
+    observer.disconnect();
+  }
+  callback("timeout");
+}, %(timeout)f * 1000);
 
 if (document.readyState != "complete") {
   addEventListener('load', wait_load);

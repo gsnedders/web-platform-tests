@@ -104,7 +104,7 @@ def get_properties(properties_file=None, extra_properties=None, config=None, pro
             logger.critical(msg)
             raise ValueError(msg)
 
-        properties, dependents = products.load_product_update(config, product)
+        properties, dependents = products.load_product_update(config, product.name)
 
     if extra_properties is not None:
         properties.extend(extra_properties)
