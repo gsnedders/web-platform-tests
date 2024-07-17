@@ -14,7 +14,7 @@ env:
   safaridriver_diagnose: false
 
 jobs:
-  results_safari:
+  safari-results:
     name: "All Tests: Safari (stable)"
     runs-on:
       - self-hosted
@@ -69,7 +69,7 @@ jobs:
       - name: Publish results
         uses: actions/upload-artifact@v4.1.0
         with:
-          name: safari-results
+          name: safari-results-${{ matrix.current-chunk }}
           path: |
             ${{ runner.temp }}/wpt_report_*.json
             ${{ runner.temp }}/wpt_screenshot_*.txt
