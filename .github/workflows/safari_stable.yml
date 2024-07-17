@@ -27,7 +27,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4.1.0
-        fetch-depth: 1
+        with:
+          fetch-depth: 1
       - name: Enable safaridriver diagnostics
         if: env.safaridriver_diagnose == true
         run: |-
