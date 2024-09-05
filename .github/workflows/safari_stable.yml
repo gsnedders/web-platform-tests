@@ -86,6 +86,11 @@ jobs:
           name: safaridriver-logs
           path: ~/Library/Logs/com.apple.WebDriver/
           if-no-files-found: warn
+      - name: Disable safaridriver diagnostics
+        if: env.SAFARIDRIVER_DIAGNOSE == true
+        run: |-
+          rm -rf ~/Library/Logs/com.apple.WebDriver/
+          defaults write com.apple.WebDriver DiagnosticsEnabled 0
       - name: Cleanup
         if: always()
         run: |-
