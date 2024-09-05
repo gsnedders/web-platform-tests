@@ -83,7 +83,7 @@ jobs:
         if: env.SAFARIDRIVER_DIAGNOSE == true
         uses: actions/upload-artifact@v4.1.0
         with:
-          name: safaridriver-logs
+          name: safaridriver-logs-${{ matrix.current-chunk }}
           path: ~/Library/Logs/com.apple.WebDriver/
           if-no-files-found: warn
       - name: Disable safaridriver diagnostics
