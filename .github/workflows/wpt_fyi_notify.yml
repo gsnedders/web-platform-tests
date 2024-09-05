@@ -9,7 +9,7 @@ jobs:
   wpt-fyi-notify:
     name: "Notify wpt.fyi"
     runs-on:
-      - ubuntu-2022
+      - ubuntu-22.04
     steps:
       - uses: fjogeleit/http-request-action@v1
         with:
