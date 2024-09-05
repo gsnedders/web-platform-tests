@@ -93,6 +93,6 @@ jobs:
   
   safari-results-notify:
     needs: safari-results
-    uses: ./.github/workflows/notify_wpt_fyi.yml
+    uses: ./.github/workflows/wpt_fyi_notify.yml
     with:
       artifact-name: 'safari-results-*'
