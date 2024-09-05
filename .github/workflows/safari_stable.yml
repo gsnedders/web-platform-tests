@@ -20,7 +20,7 @@ env:
   ACTIONS_RUNNER_DEBUG: true
 
 jobs:
-  results_safari:
+  safari-stable-results:
     name: "All Tests: Safari (stable)"
     runs-on:
       - self-hosted
@@ -74,7 +74,7 @@ jobs:
       - name: Publish results
         uses: actions/upload-artifact@v4.1.0
         with:
-          name: safari-results
+          name: safari-results-${{ matrix.current-chunk }}
           path: |
             ${{ runner.temp }}/wpt_report_*.json
             ${{ runner.temp }}/wpt_screenshot_*.txt
@@ -92,8 +92,8 @@ jobs:
             set -ux
             sudo sed -i '' '/^# Start web-platform-tests hosts$/,/^# End web-platform-tests hosts$/d' /etc/hosts
 
-  safari-results-notify:
-    needs: safari-results
+  safari-stable-results-notify:
+    needs: safari-stable-results
     uses: ./.github/workflows/wpt_fyi_notify.yml
     with:
       artifact-name: 'safari-results-*'
