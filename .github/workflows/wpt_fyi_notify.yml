@@ -32,7 +32,7 @@ jobs:
           contentType: 'application/x-www-form-urlencoded'
           data: |
             ${{ format(
-                  '{"run_id": {0}, "owner": {1}, "repo": {2}, "artifact_name": {3}}',
+                  '{{"run_id": {0}, "owner": {1}, "repo": {2}, "artifact_name": {3}}}',
                   toJSON(github.run_id),
                   toJSON(github.repository_owner),
                   toJSON(github.event.repository.name),
