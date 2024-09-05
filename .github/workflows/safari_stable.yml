@@ -15,7 +15,7 @@ env:
   # logs won't appear in `./wpt run` output but will be uploaded as an
   # artifact.
   SAFARIDRIVER_DIAGNOSE: false
-
+  
   # Enable GitHub Actions debug logging.
   ACTIONS_RUNNER_DEBUG: true
 
@@ -90,7 +90,7 @@ jobs:
         run: |-
             set -ux
             sudo sed -i '' '/^# Start web-platform-tests hosts$/,/^# End web-platform-tests hosts$/d' /etc/hosts
-
+  
   safari-results-notify:
     needs: safari-results
     uses: ./.github/workflows/notify_wpt_fyi.yml
