@@ -13,8 +13,9 @@
 #
 
 
+from enum import Enum, auto
 from io import BytesIO
-from typing import Optional, Generator, Tuple, Callable, MutableSequence
+from typing import Optional, Generator, Tuple, Callable, MutableSequence, Union, Iterator, Literal
 
 from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOperatorNode,
                    ConditionalNode, DataNode, IndexNode, KeyValueNode, ListNode,
@@ -30,9 +31,11 @@ class ParseError(Exception):
         self.message = f"{self.detail}: {self.filename} line {self.line}"
         Exception.__init__(self, self.message)
 
-eol = object
-group_start = object
-group_end = object
+
+class EolSentinal:
+    pass
+
+eol = EolSentinal()
 digits = "0123456789"
 open_parens = "[("
 close_parens = "])"
@@ -49,42 +52,69 @@ atoms = {"True": True,
          "Reset": object(),
          "Null": None}
 
-def decode(s):
+def decode(s: str) -> str:
     assert isinstance(s, str)
     return s
 
 
-def precedence(operator_node):
+def precedence(operator_node) -> int:
     return len(operators) - operators.index(operator_node.data)
 
 
-class TokenTypes:
-    def __init__(self) -> None:
-        self.group_start = "group_start"
-        self.group_end = "group_end"
-        self.paren = "paren"
-        self.list_start = "list_start"
-        self.list_end = "list_end"
-        self.separator = "separator"
-        self.ident = "ident"
-        self.string = "string"
-        self.number = "number"
-        self.atom = "atom"
-        # Without an end-of-line token type, we need two different comment
-        # token types to distinguish between:
-        #   [heading1]  # Comment attached to heading 1
-        #   [heading2]
-        #
-        # and
-        #   [heading1]
-        #   # Comment attached to heading 2
-        #   [heading2]
-        self.comment = "comment"
-        self.inline_comment = "inline_comment"
-        self.eof = "eof"
+class token_types(Enum):
+    group_start = auto()
+    group_end = auto()
+    paren = auto()
+    list_start = auto()
+    list_end = auto()
+    separator = auto()
+    ident = auto()
+    string = auto()
+    number = auto()
+    atom = auto()
+    # Without an end-of-line token type, we need two different comment
+    # token types to distinguish between:
+    #   [heading1]  # Comment attached to heading 1
+    #   [heading2]
+    #
+    # and
+    #   [heading1]
+    #   # Comment attached to heading 2
+    #   [heading2]
+    comment = auto()
+    inline_comment = auto()
+    eof = auto()
 
-token_types = TokenTypes()
 
+GroupStartToken = Tuple[Literal[token_types.group_start], None]
+GroupEndToken = Tuple[Literal[token_types.group_end], None]
+ParenToken = Tuple[Literal[token_types.paren], str]
+ListStartToken = Tuple[Literal[token_types.list_start], str]
+ListEndToken = Tuple[Literal[token_types.list_end], str]
+SeparatorToken = Tuple[Literal[token_types.separator], str]
+IdentToken = Tuple[Literal[token_types.ident], str]
+StringToken = Tuple[Literal[token_types.string], str]
+NumberToken = Tuple[Literal[token_types.number], str]
+AtomToken = Tuple[Literal[token_types.atom], str]
+CommentToken = Tuple[Literal[token_types.comment], str]
+InlineCommentToken = Tuple[Literal[token_types.inline_comment], str]
+EofToken = Tuple[Literal[token_types.eof], None]
+
+Tokens = Union[
+    GroupStartToken,
+    GroupEndToken,
+    ParenToken,
+    ListStartToken,
+    ListEndToken,
+    SeparatorToken,
+    IdentToken,
+    StringToken,
+    NumberToken,
+    AtomToken,
+    CommentToken,
+    InlineCommentToken,
+    EofToken,
+]
 
 class Tokenizer:
     def __init__(self) -> None:
@@ -92,12 +122,12 @@ class Tokenizer:
 
     def reset(self) -> None:
         self.indent_levels = [0]
-        self.state: Optional[Callable[[], Optional[Generator[Tuple[str, None]]]]] = self.line_start_state
-        self.next_state = self.data_line_state
+        self.state: Optional[Callable[[], Optional[Iterator[Tokens]]]] = self.line_start_state
+        self.next_state: Optional[Callable[[], Optional[Iterator[Tokens]]]] = self.data_line_state
         self.line_number = 0
         self.filename = ""
 
-    def tokenize(self, stream):
+    def tokenize(self, stream) -> Iterator[Tokens]:
         self.reset()
         assert not isinstance(stream, str)
         if isinstance(stream, bytes):
@@ -107,7 +137,7 @@ class Tokenizer:
         else:
             self.filename = stream.name
 
-        self.next_line_state: Optional[Callable[[], Optional[Generator[Tuple[str, None]]]]] = self.line_start_state
+        self.next_line_state: Optional[Callable[[], Optional[Iterator[Tokens]]]] = self.line_start_state
         for i, line in enumerate(stream):
             assert isinstance(line, bytes)
             self.state = self.next_line_state
@@ -127,7 +157,7 @@ class Tokenizer:
         while True:
             yield (token_types.eof, None)
 
-    def char(self):
+    def char(self) -> Union[str, EolSentinal]:
         if self.index == len(self.line):
             return eol
         return self.line[self.index]
@@ -136,7 +166,7 @@ class Tokenizer:
         if self.index < len(self.line):
             self.index += 1
 
-    def peek(self, length):
+    def peek(self, length) -> str:
         return self.line[self.index:self.index + length]
 
     def skip_whitespace(self) -> None:
@@ -147,7 +177,7 @@ class Tokenizer:
         if self.next_line_state is None:
             self.next_line_state = self.line_start_state
 
-    def line_start_state(self) -> Optional[Generator[Tuple[str, None]]]:
+    def line_start_state(self) -> Optional[Iterator[Tokens]]:
         self.skip_whitespace()
         if self.char() == eol:
             self.state = self.eol_state
@@ -173,15 +203,17 @@ class Tokenizer:
         self.state = self.next_state
         return None
 
-    def data_line_state(self):
-        if self.char() == "[":
-            yield (token_types.paren, self.char())
+    def data_line_state(self) -> Iterator[Tokens]:
+        char = self.char()
+        if char == "[":
+            assert isinstance(char, str)  # XXX: why does the above not narrow this?
+            yield (token_types.paren, char)
             self.consume()
             self.state = self.heading_state
         else:
             self.state = self.key_state
 
-    def heading_state(self):
+    def heading_state(self) -> Iterator[Tokens]:
         rv = ""
         while True:
             c = self.char()
@@ -192,6 +224,7 @@ class Tokenizer:
             elif c == eol:
                 raise ParseError(self.filename, self.line_number, "EOL in heading")
             else:
+                assert isinstance(c, str)  # XXX: why does the above not narrow this?
                 rv += c
                 self.consume()
 
@@ -201,7 +234,7 @@ class Tokenizer:
         self.state = self.line_end_state
         self.next_state = self.data_line_state
 
-    def key_state(self):
+    def key_state(self) -> Iterator[Tokens]:
         rv = ""
         while True:
             c = self.char()
@@ -217,6 +250,7 @@ class Tokenizer:
             elif c == "\\":
                 rv += self.consume_escape()
             else:
+                assert isinstance(c, str)  # XXX: why does the above not narrow this?
                 rv += c
                 self.consume()
         yield (token_types.string, decode(rv))
@@ -246,12 +280,12 @@ class Tokenizer:
         else:
             self.state = self.value_state
 
-    def list_start_state(self):
+    def list_start_state(self) -> Iterator[Tokens]:
         yield (token_types.list_start, "[")
         self.consume()
         self.state = self.list_value_start_state
 
-    def list_value_start_state(self):
+    def list_value_start_state(self) -> Iterator[Tokens]:
         self.skip_whitespace()
         if self.char() == "]":
             self.state = self.list_end_state
@@ -275,7 +309,7 @@ class Tokenizer:
         else:
             self.state = self.list_value_state
 
-    def list_value_state(self):
+    def list_value_state(self) -> Iterator[StringToken]:
         rv = ""
         spaces = 0
         while True:
@@ -299,6 +333,7 @@ class Tokenizer:
                 self.consume()
                 break
             else:
+                assert isinstance(c, str)  # XXX: why does the above not narrow this?
                 rv += " " * spaces
                 spaces = 0
                 rv += c
@@ -307,17 +342,17 @@ class Tokenizer:
         if rv:
             yield (token_types.string, decode(rv))
 
-    def list_value_atom_state(self):
+    def list_value_atom_state(self) -> Iterator[Tokens]:
         self.consume()
         for _, value in self.list_value_state():
             yield token_types.atom, value
 
-    def list_end_state(self):
+    def list_end_state(self) -> Iterator[Tokens]:
         self.consume()
         yield (token_types.list_end, "]")
         self.state = self.line_end_state
 
-    def value_state(self):
+    def value_state(self) -> Iterator[Tokens]:
         self.skip_whitespace()
         c = self.char()
         if c in ("'", '"'):
@@ -332,7 +367,7 @@ class Tokenizer:
         else:
             self.state = self.value_inner_state
 
-    def value_inner_state(self):
+    def value_inner_state(self) -> Iterator[Tokens]:
         rv = ""
         spaces = 0
         while True:
@@ -347,6 +382,7 @@ class Tokenizer:
                 spaces += 1
                 self.consume()
             else:
+                assert isinstance(c, str)  # XXX: why does the above not narrow this?
                 rv += " " * spaces
                 spaces = 0
                 rv += c
@@ -360,24 +396,26 @@ class Tokenizer:
                              "(expressions must start on a newline and be indented)")
         yield (token_types.string, rv)
 
-    def _consume_comment(self):
+    def _consume_comment(self) -> str:
         assert self.char() == "#"
         self.consume()
         comment = ''
-        while self.char() is not eol:
-            comment += self.char()
+        c = self.char()
+        while c is not eol:
+            assert isinstance(c, str)  # XXX: why does the above not narrow this?
+            comment += c
             self.consume()
         return comment
 
-    def comment_state(self):
+    def comment_state(self) -> Iterator[Tokens]:
         yield (token_types.comment, self._consume_comment())
         self.state = self.eol_state
 
-    def inline_comment_state(self):
+    def inline_comment_state(self) -> Iterator[Tokens]:
         yield (token_types.inline_comment, self._consume_comment())
         self.state = self.eol_state
 
-    def line_end_state(self):
+    def line_end_state(self) -> None:
         self.skip_whitespace()
         c = self.char()
         if c == "#":
@@ -387,7 +425,7 @@ class Tokenizer:
         else:
             raise ParseError(self.filename, self.line_number, "Junk before EOL %s" % c)
 
-    def consume_string(self, quote_char):
+    def consume_string(self, quote_char) -> str:
         rv = ""
         while True:
             c = self.char()
@@ -399,6 +437,7 @@ class Tokenizer:
             elif c == eol:
                 raise ParseError(self.filename, self.line_number, "EOL in quoted string")
             else:
+                assert isinstance(c, str)  # XXX: why does the above not narrow this?
                 rv += c
                 self.consume()
 
@@ -410,7 +449,7 @@ class Tokenizer:
         else:
             self.state = self.value_state
 
-    def expr_state(self):
+    def expr_state(self) -> Iterator[Tokens]:
         self.skip_whitespace()
         c = self.char()
         if c == eol:
@@ -421,10 +460,12 @@ class Tokenizer:
         elif c == "#":
             raise ParseError(self.filename, self.line_number, "Comment before end of expression")
         elif c == ":":
+            assert isinstance(c, str)  # XXX: why does the above not narrow this?
             yield (token_types.separator, c)
             self.consume()
             self.state = self.after_expr_state
         elif c in parens:
+            assert isinstance(c, str)  # XXX: why does the above not narrow this?
             self.consume()
             yield (token_types.paren, c)
         elif c in ("!", "="):
@@ -436,7 +477,7 @@ class Tokenizer:
         else:
             self.state = self.ident_state
 
-    def operator_state(self):
+    def operator_state(self) -> Iterator[Tokens]:
         # Only symbolic operators
         index_0 = self.index
         while True:
@@ -450,7 +491,7 @@ class Tokenizer:
                 break
         yield (token_types.ident, self.line[index_0:self.index])
 
-    def digit_state(self):
+    def digit_state(self) -> Iterator[Tokens]:
         index_0 = self.index
         seen_dot = False
         while True:
@@ -478,7 +519,7 @@ class Tokenizer:
         self.state = self.expr_state
         yield (token_types.number, self.line[index_0:self.index])
 
-    def ident_state(self):
+    def ident_state(self) -> Iterator[IdentToken]:
         index_0 = self.index
         while True:
             c = self.char()
@@ -499,13 +540,13 @@ class Tokenizer:
         self.state = self.expr_state
         yield (token_types.ident, self.line[index_0:self.index])
 
-    def value_atom_state(self):
+    def value_atom_state(self) -> Iterator[Tokens]:
         self.consume()
         _, value = next(self.ident_state())
         self.state = self.line_end_state
         yield (token_types.atom, value)
 
-    def expr_atom_state(self):
+    def expr_atom_state(self) -> Iterator[Tokens]:
         self.consume()
         _, value = next(self.ident_state())
         yield (token_types.atom, value)
@@ -554,15 +595,15 @@ class Parser:
         self.reset()
 
     def reset(self) -> None:
-        self.token = None
+        self.token: Optional[Tokens] = None
         self.unary_operators = "!"
         self.binary_operators = frozenset(["&&", "||", "=="])
         self.tokenizer = Tokenizer()
-        self.token_generator = None
+        self.token_generator: Optional[Iterator[Tokens]] = None
         self.tree = Treebuilder(DataNode(None))
         self.expr_builder: Optional[ExpressionBuilder] = None
         self.expr_builders: MutableSequence[ExpressionBuilder] = []
-        self.comments = []
+        self.comments: MutableSequence[Union[CommentToken, InlineCommentToken]] = []
 
     def parse(self, input):
         try:
@@ -579,9 +620,11 @@ class Parser:
             raise
 
     def consume(self) -> None:
+        assert self.token_generator is not None
         self.token = next(self.token_generator)
 
     def expect(self, type, value=None):
+        assert self.token is not None
         if self.token[0] != type:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number,
                              f"Token '{self.token[0]}' doesn't equal expected type '{type}'")
@@ -593,11 +636,13 @@ class Parser:
         self.consume()
 
     def maybe_consume_inline_comment(self) -> None:
+        assert self.token is not None
         if self.token[0] == token_types.inline_comment:
             self.comments.append(self.token)
             self.consume()
 
     def consume_comments(self) -> None:
+        assert self.token is not None
         while self.token[0] == token_types.comment:
             self.comments.append(self.token)
             self.consume()
@@ -622,6 +667,7 @@ class Parser:
         self.expect(token_types.eof)
 
     def data_block(self):
+        assert self.token is not None
         while self.token[0] in {token_types.comment, token_types.string,
                                 token_types.paren}:
             if self.token[0] == token_types.comment:
@@ -655,10 +701,12 @@ class Parser:
                 self.tree.pop()
 
     def eof_or_end_group(self) -> None:
+        assert self.token is not None
         if self.token[0] != token_types.eof:
             self.expect(token_types.group_end)
 
     def value_block(self):
+        assert self.token is not None
         if self.token[0] == token_types.list_start:
             self.consume()
             self.list_value()
@@ -700,6 +748,7 @@ class Parser:
                              f"Token '{self.token[0]}' is not a known type")
 
     def list_value(self) -> None:
+        assert self.token is not None
         self.tree.append(ListNode())
         self.maybe_consume_inline_comment()
         while self.token[0] in (token_types.atom, token_types.string):
@@ -724,12 +773,14 @@ class Parser:
             self.consume_comments()
 
     def value(self) -> None:
+        assert self.token is not None
         self.tree.append(ValueNode(self.token[1]))
         self.consume()
         self.maybe_consume_inline_comment()
         self.tree.pop()
 
     def atom(self):
+        assert self.token is not None
         if self.token[1] not in atoms:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Unrecognised symbol @%s" % self.token[1])
         self.tree.append(AtomNode(atoms[self.token[1]]))
@@ -752,12 +803,15 @@ class Parser:
             self.tree.pop()
 
     def expr(self) -> None:
+        assert self.token is not None
         self.expr_operand()
         while (self.token[0] == token_types.ident and self.token[1] in binary_operators):
             self.expr_bin_op()
             self.expr_operand()
 
     def expr_operand(self):
+        assert self.token is not None
+        assert self.expr_builder is not None
         if self.token == (token_types.paren, "("):
             self.consume()
             self.expr_builder.left_paren()
@@ -775,6 +829,8 @@ class Parser:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Unrecognised operand")
 
     def expr_unary_op(self):
+        assert self.token is not None
+        assert self.expr_builder is not None
         if self.token[1] in unary_operators:
             self.expr_builder.push_operator(UnaryOperatorNode(self.token[1]))
             self.consume()
@@ -782,6 +838,8 @@ class Parser:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Expected unary operator")
 
     def expr_bin_op(self):
+        assert self.token is not None
+        assert self.expr_builder is not None
         if self.token[1] in binary_operators:
             self.expr_builder.push_operator(BinaryOperatorNode(self.token[1]))
             self.consume()
@@ -789,6 +847,8 @@ class Parser:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Expected binary operator")
 
     def expr_value(self) -> None:
+        assert self.token is not None
+        assert self.expr_builder is not None
         node_type = {token_types.string: StringNode,
                      token_types.ident: VariableNode,
                      token_types.atom: AtomExprNode}[self.token[0]]
@@ -806,6 +866,8 @@ class Parser:
             self.expect(token_types.paren, "]")
 
     def expr_number(self) -> None:
+        assert self.token is not None
+        assert self.expr_builder is not None
         self.expr_builder.push_operand(NumberNode(self.token[1]))
         self.consume()
 
