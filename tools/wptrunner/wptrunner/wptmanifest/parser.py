@@ -14,7 +14,7 @@
 
 
 from io import BytesIO
-from typing import Optional, Generator, Tuple, Callable
+from typing import Optional, Generator, Tuple, Callable, MutableSequence
 
 from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOperatorNode,
                    ConditionalNode, DataNode, IndexNode, KeyValueNode, ListNode,
@@ -560,8 +560,8 @@ class Parser:
         self.tokenizer = Tokenizer()
         self.token_generator = None
         self.tree = Treebuilder(DataNode(None))
-        self.expr_builder = None
-        self.expr_builders = []
+        self.expr_builder: Optional[ExpressionBuilder] = None
+        self.expr_builders: MutableSequence[ExpressionBuilder] = []
         self.comments = []
 
     def parse(self, input):
@@ -738,8 +738,9 @@ class Parser:
         self.tree.pop()
 
     def expr_start(self) -> None:
-        self.expr_builder = ExpressionBuilder(self.tokenizer)
-        self.expr_builders.append(self.expr_builder)
+        expr_builder = ExpressionBuilder(self.tokenizer)
+        self.expr_builder = expr_builder
+        self.expr_builders.append(expr_builder)
         self.expr()
         expression = self.expr_builder.finish()
         self.expr_builders.pop()
