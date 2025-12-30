@@ -59,31 +59,28 @@ def precedence(operator_node):
 
 class TokenTypes:
     def __init__(self) -> None:
-        for type in [
-            "group_start",
-            "group_end",
-            "paren",
-            "list_start",
-            "list_end",
-            "separator",
-            "ident",
-            "string",
-            "number",
-            "atom",
-            # Without an end-of-line token type, we need two different comment
-            # token types to distinguish between:
-            #   [heading1]  # Comment attached to heading 1
-            #   [heading2]
-            #
-            # and
-            #   [heading1]
-            #   # Comment attached to heading 2
-            #   [heading2]
-            "comment",
-            "inline_comment",
-            "eof",
-        ]:
-            setattr(self, type, type)
+        self.group_start = "group_start"
+        self.group_end = "group_end"
+        self.paren = "paren"
+        self.list_start = "list_start"
+        self.list_end = "list_end"
+        self.separator = "separator"
+        self.ident = "ident"
+        self.string = "string"
+        self.number = "number"
+        self.atom = "atom"
+        # Without an end-of-line token type, we need two different comment
+        # token types to distinguish between:
+        #   [heading1]  # Comment attached to heading 1
+        #   [heading2]
+        #
+        # and
+        #   [heading1]
+        #   # Comment attached to heading 2
+        #   [heading2]
+        self.comment = "comment"
+        self.inline_comment = "inline_comment"
+        self.eof = "eof"
 
 token_types = TokenTypes()
 
