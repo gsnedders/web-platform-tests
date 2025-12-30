@@ -14,6 +14,7 @@
 
 
 from io import BytesIO
+from typing import Optional, Generator, Tuple
 
 from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOperatorNode,
                    ConditionalNode, DataNode, IndexNode, KeyValueNode, ListNode,
@@ -146,14 +147,14 @@ class Tokenizer:
         if self.next_line_state is None:
             self.next_line_state = self.line_start_state
 
-    def line_start_state(self):
+    def line_start_state(self) -> Optional[Generator[Tuple[str, None]]]:
         self.skip_whitespace()
         if self.char() == eol:
             self.state = self.eol_state
-            return
+            return None
         if self.char() == "#":
             self.state = self.comment_state
-            return
+            return None
         if self.index > self.indent_levels[-1]:
             self.indent_levels.append(self.index)
             yield (token_types.group_start, None)
@@ -170,6 +171,7 @@ class Tokenizer:
                 raise ParseError(self.filename, self.line_number, "Unexpected indent")
 
         self.state = self.next_state
+        return None
 
     def data_line_state(self):
         if self.char() == "[":
