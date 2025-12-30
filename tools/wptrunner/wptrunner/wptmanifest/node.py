@@ -1,5 +1,8 @@
 # mypy: allow-untyped-defs
 
+from typing import Optional
+
+
 class NodeVisitor:
     def visit(self, node):
         # This is ugly as hell, but we don't have multimethods and
@@ -12,7 +15,7 @@ class NodeVisitor:
 class Node:
     def __init__(self, data=None, comments=None):
         self.data = data
-        self.parent = None
+        self.parent: Optional[Node] = None
         self.children = []
         self.comments = comments or []
 
@@ -21,6 +24,9 @@ class Node:
         self.children.append(other)
 
     def remove(self):
+        if self.parent is None:
+            raise ValueError("Cannot remove a node which has no parent")
+
         self.parent.children.remove(self)
 
     def __repr__(self):
