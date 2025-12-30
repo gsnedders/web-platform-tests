@@ -14,7 +14,7 @@
 
 
 from io import BytesIO
-from typing import Optional, Generator, Tuple
+from typing import Optional, Generator, Tuple, Callable
 
 from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOperatorNode,
                    ConditionalNode, DataNode, IndexNode, KeyValueNode, ListNode,
@@ -92,7 +92,7 @@ class Tokenizer:
 
     def reset(self) -> None:
         self.indent_levels = [0]
-        self.state = self.line_start_state
+        self.state: Optional[Callable[[], Optional[Generator[Tuple[str, None]]]]] = self.line_start_state
         self.next_state = self.data_line_state
         self.line_number = 0
         self.filename = ""
@@ -107,7 +107,7 @@ class Tokenizer:
         else:
             self.filename = stream.name
 
-        self.next_line_state = self.line_start_state
+        self.next_line_state: Optional[Callable[[], Optional[Generator[Tuple[str, None]]]]] = self.line_start_state
         for i, line in enumerate(stream):
             assert isinstance(line, bytes)
             self.state = self.next_line_state
