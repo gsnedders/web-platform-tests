@@ -16,7 +16,7 @@ def write_properties(tmp_path, data):  # type: ignore
                          [{"properties": ["prop1"]},  # type: ignore
                           {"properties": ["prop1"], "dependents": {"prop1": ["prop2"]}},
                           ])
-def test_get_properties_file_valid(tmp_path, data):
+def test_get_properties_file_valid(tmp_path, data) -> None:
     path = write_properties(tmp_path, data)
     expected = data["properties"], data.get("dependents", {})
     actual = metadata.get_properties(properties_file=path)
@@ -33,13 +33,13 @@ def test_get_properties_file_valid(tmp_path, data):
                           {"properties": "prop1", "dependents": {"prop1": ["prop2", 2]}},
                           {"properties": ["prop1"], "dependents": {"prop2": ["prop3"]}},
                           ])
-def test_get_properties_file_invalid(tmp_path, data):
+def test_get_properties_file_invalid(tmp_path, data) -> None:
     path = write_properties(tmp_path, data)
     with pytest.raises(ValueError):
         metadata.get_properties(properties_file=path)
 
 
-def test_extra_properties(tmp_path):  # type: ignore
+def test_extra_properties(tmp_path) -> None:  # type: ignore
     data = {"properties": ["prop1"], "dependents": {"prop1": ["prop2"]}}
     path = write_properties(tmp_path, data)
     actual = metadata.get_properties(properties_file=path, extra_properties=["prop4"])

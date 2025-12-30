@@ -21,17 +21,17 @@ def replace_lone_surrogate(data):
 class WptreportFormatter(BaseFormatter):  # type: ignore
     """Formatter that produces results in the format that wptreport expects."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.raw_results = {}
         self.results = {}
 
-    def suite_start(self, data):
+    def suite_start(self, data) -> None:
         self.results["run_info"] = data.get("run_info", {})
         self.results["time_start"] = data["time"]
         self.results["results"] = []
         self.results["subsuites"] = {}
 
-    def add_subsuite(self, data):
+    def add_subsuite(self, data) -> None:
         self.results["subsuites"][data["name"]] = data.get("run_info", {})
 
     def suite_end(self, data):
@@ -51,7 +51,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
                                                       "status": "",
                                                       "message": None})
 
-    def test_start(self, data):
+    def test_start(self, data) -> None:
         test = self.find_or_create_test(data)
         test["start_time"] = data["time"]
 
@@ -68,7 +68,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
 
         return subtest
 
-    def test_status(self, data):
+    def test_status(self, data) -> None:
         subtest = self.create_subtest(data)
         subtest["status"] = data["status"]
         if "expected" in data:
@@ -78,7 +78,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
         if "message" in data:
             subtest["message"] = replace_lone_surrogate(data["message"])
 
-    def test_end(self, data):
+    def test_end(self, data) -> None:
         test = self.find_or_create_test(data)
         start_time = test.pop("start_time")
         test["duration"] = data["time"] - start_time
@@ -103,7 +103,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
         self.results["results"].append(result)
         self.raw_results[subsuite].pop(test_name)
 
-    def assertion_count(self, data):
+    def assertion_count(self, data) -> None:
         test = self.find_or_create_test(data)
         test["asserts"] = {
             "count": data["count"],
@@ -111,7 +111,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
             "max": data["max_expected"]
         }
 
-    def lsan_leak(self, data):
+    def lsan_leak(self, data) -> None:
         if "lsan_leaks" not in self.results:
             self.results["lsan_leaks"] = []
         lsan_leaks = self.results["lsan_leaks"]
@@ -128,7 +128,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
             self.results["mozleak"][scope] = {"objects": [], "total": []}
         return self.results["mozleak"][scope]
 
-    def mozleak_object(self, data):
+    def mozleak_object(self, data) -> None:
         scope_data = self.find_or_create_mozleak(data)
         scope_data["objects"].append({"process": data["process"],
                                       "name": data["name"],
@@ -136,7 +136,7 @@ class WptreportFormatter(BaseFormatter):  # type: ignore
                                       "bytes": data["bytes"],
                                       "subsuite": data.get("subsuite", "")})
 
-    def mozleak_total(self, data):
+    def mozleak_total(self, data) -> None:
         scope_data = self.find_or_create_mozleak(data)
         scope_data["total"].append({"bytes": data["bytes"],
                                     "threshold": data.get("threshold", 0),

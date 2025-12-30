@@ -23,7 +23,7 @@ from .. import manifestexpected
      [(("test.html", "ref.html", "!="), ((1, 1), (200, 200))),
       (("test.html", "ref1.html", "=="), ((5,10), (100, 100)))]),
 ])
-def test_fuzzy(fuzzy, expected):
+def test_fuzzy(fuzzy, expected) -> None:
     data = b"""
 [test.html]
   fuzzy: %s""" % fuzzy

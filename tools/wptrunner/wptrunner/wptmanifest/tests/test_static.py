@@ -12,7 +12,7 @@ class TestStatic(unittest.TestCase):
     def compile(self, input_text, input_data):
         return static.compile(input_text, input_data)
 
-    def test_get_0(self):
+    def test_get_0(self) -> None:
         data = b"""
 key: value
 
@@ -34,7 +34,7 @@ key: value
         self.assertEqual(section.get("other_key"), "value_2")
         self.assertEqual(section.get("key"), "value")
 
-    def test_get_1(self):
+    def test_get_1(self) -> None:
         data = b"""
 key: value
 
@@ -50,7 +50,7 @@ key: value
         section = children[0]
         self.assertEqual(section.get("other_key"), "value_3")
 
-    def test_get_3(self):
+    def test_get_3(self) -> None:
         data = b"""key:
   if a == "1": value_1
   if a[0] == "ab"[0]: value_2
@@ -61,7 +61,7 @@ key: value
         manifest = self.compile(data, {"a": "ac"})
         self.assertEqual(manifest.get("key"), "value_2")
 
-    def test_get_4(self):
+    def test_get_4(self) -> None:
         data = b"""key:
   if not a: value_1
   value_2
@@ -72,7 +72,7 @@ key: value
         manifest = self.compile(data, {"a": False})
         self.assertEqual(manifest.get("key"), "value_1")
 
-    def test_api(self):
+    def test_api(self) -> None:
         data = b"""key:
   if a == 1.5: value_1
   value_2
@@ -88,7 +88,7 @@ key_1: other_value
         self.assertEqual(set(manifest.iterkeys()), {"key", "key_1"})
         self.assertEqual(set(manifest.itervalues()), {"value_1", "other_value"})
 
-    def test_is_empty_1(self):
+    def test_is_empty_1(self) -> None:
         data = b"""
 [Section]
   [Subsection]

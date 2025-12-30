@@ -10,7 +10,7 @@ from ..formatters.wptscreenshot import WptscreenshotFormatter
 from ..formatters.wptreport import WptreportFormatter
 
 
-def test_wptreport_runtime(capfd):
+def test_wptreport_runtime(capfd) -> None:
     # setup the logger
     output = StringIO()
     logger = structuredlog.StructuredLogger("test_a")
@@ -38,7 +38,7 @@ def test_wptreport_runtime(capfd):
     assert output_obj["results"][0]["duration"] >= 62
 
 
-def test_wptreport_run_info_optional(capfd):
+def test_wptreport_run_info_optional(capfd) -> None:
     """per the mozlog docs, run_info is optional; check we work without it"""
     # setup the logger
     output = StringIO()
@@ -63,7 +63,7 @@ def test_wptreport_run_info_optional(capfd):
     assert "run_info" not in output_obj or output_obj["run_info"] == {}
 
 
-def test_wptreport_lone_surrogate(capfd):
+def test_wptreport_lone_surrogate(capfd) -> None:
     output = StringIO()
     logger = structuredlog.StructuredLogger("test_a")
     logger.add_handler(handlers.StreamHandler(output, WptreportFormatter()))
@@ -96,7 +96,7 @@ def test_wptreport_lone_surrogate(capfd):
     assert subtest["message"] == "\U0001F601 U+de0aU+d83d"
 
 
-def test_wptreport_known_intermittent(capfd):
+def test_wptreport_known_intermittent(capfd) -> None:
     output = StringIO()
     logger = structuredlog.StructuredLogger("test_a")
     logger.add_handler(handlers.StreamHandler(output, WptreportFormatter()))
@@ -129,7 +129,7 @@ def test_wptreport_known_intermittent(capfd):
     assert subtest["known_intermittent"] == ['FAIL']
 
 
-def test_wptscreenshot_test_end(capfd):
+def test_wptscreenshot_test_end(capfd) -> None:
     formatter = WptscreenshotFormatter()
 
     # Empty

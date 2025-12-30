@@ -10,7 +10,7 @@ class TestConditional(unittest.TestCase):
     def compile(self, input_text):
         return conditional.compile(input_text)
 
-    def test_get_0(self):
+    def test_get_0(self) -> None:
         data = b"""
 key: value
 
@@ -34,7 +34,7 @@ key: value
         self.assertEqual(section.get("other_key", {"a": 7}), "value_3")
         self.assertEqual(section.get("key"), "value")
 
-    def test_get_1(self):
+    def test_get_1(self) -> None:
         data = b"""
 key: value
 
@@ -53,7 +53,7 @@ key: value
         self.assertEqual(section.get("other_key", {"a": "1"}), "value_1")
         self.assertEqual(section.get("other_key", {"a": 1}), "value_3")
 
-    def test_get_2(self):
+    def test_get_2(self) -> None:
         data = b"""
 key:
   if a[1] == "b": value_1
@@ -66,7 +66,7 @@ key:
         self.assertEqual(manifest.get("key", {"a": "ab"}), "value_1")
         self.assertEqual(manifest.get("key", {"a": [1, 2]}), "value_2")
 
-    def test_get_3(self):
+    def test_get_3(self) -> None:
         data = b"""
 key:
   if a[1] == "ab"[1]: value_1
@@ -79,7 +79,7 @@ key:
         self.assertEqual(manifest.get("key", {"a": "ab"}), "value_1")
         self.assertEqual(manifest.get("key", {"a": [1, 2]}), "value_2")
 
-    def test_set_0(self):
+    def test_set_0(self) -> None:
         data = b"""
 key:
   if a == "a": value_1
@@ -92,7 +92,7 @@ key:
 
         self.assertEqual(manifest.get("new_key"), "value_new")
 
-    def test_set_1(self):
+    def test_set_1(self) -> None:
         data = b"""
 key:
   if a == "a": value_1
@@ -107,7 +107,7 @@ key:
         self.assertEqual(manifest.get("key"), "value_new")
         self.assertEqual(manifest.get("key", {"a": "a"}), "value_1")
 
-    def test_set_2(self):
+    def test_set_2(self) -> None:
         data = b"""
 key:
   if a == "a": value_1
@@ -126,7 +126,7 @@ key:
         self.assertEqual(manifest.get("key", {"a": 1}), "value_new")
         self.assertEqual(manifest.get("key", {"a": "a"}), "value_1")
 
-    def test_api_0(self):
+    def test_api_0(self) -> None:
         data = b"""
 key:
   if a == 1.5: value_1

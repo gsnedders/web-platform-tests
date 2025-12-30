@@ -15,7 +15,7 @@ class BaseState:
         logger.debug("No existing state found")
         return super().__new__(cls)
 
-    def __init__(self, logger):
+    def __init__(self, logger) -> None:
         """Object containing state variables created when running Steps.
 
         Variables are set and get as attributes e.g. state_obj.spam = "eggs".
@@ -47,11 +47,11 @@ class BaseState:
     def is_empty(self):
         return len(self._data) == 1 and self._data[0] == {}
 
-    def clear(self):
+    def clear(self) -> None:
         """Remove all state and delete the stored copy."""
         self._data = [{}]
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key, value) -> None:
         if key.startswith("_"):
             object.__setattr__(self, key, value)
         else:
@@ -66,10 +66,10 @@ class BaseState:
         except KeyError as e:
             raise AttributeError from e
 
-    def __contains__(self, key):
+    def __contains__(self, key) -> bool:
         return key in self._data[self._index]
 
-    def update(self, items):
+    def update(self, items) -> None:
         """Add a dictionary of {name: value} pairs to the state"""
         self._data[self._index].update(items)
         self.save()
@@ -111,12 +111,12 @@ class SavedState(BaseState):
         except OSError:
             logger.debug("IOError loading stored state")
 
-    def save(self):
+    def save(self) -> None:
         """Write the state to disk"""
         with open(self.filename, "wb") as f:
             pickle.dump(self, f)
 
-    def clear(self):
+    def clear(self) -> None:
         super().clear()
         try:
             os.unlink(self.filename)
@@ -129,16 +129,16 @@ class UnsavedState(BaseState):
     def load(cls, logger):
         return None
 
-    def save(self):
+    def save(self) -> None:
         return
 
 
 class StateContext:
-    def __init__(self, state, init_values):
+    def __init__(self, state, init_values) -> None:
         self.state = state
         self.init_values = init_values
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         if len(self.state._data) == self.state._index + 1:
             # This is the case where there is no stored state
             new_state = {}

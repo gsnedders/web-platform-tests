@@ -72,14 +72,14 @@ class WebDriverAsyncCallbackHandler(AsyncCallbackHandler):
 
 
 class WebDriverBaseProtocolPart(BaseProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def execute_script(self, script, asynchronous=False, args=None):
         method = self.webdriver.execute_async_script if asynchronous else self.webdriver.execute_script
         return method(script, args=args)
 
-    def set_timeout(self, timeout):
+    def set_timeout(self, timeout) -> None:
         self.webdriver.timeouts.script = timeout
 
     def create_window(self, type=None, **kwargs):
@@ -93,16 +93,16 @@ class WebDriverBaseProtocolPart(BaseProtocolPart):
     def current_window(self):
         return self.webdriver.window_handle
 
-    def set_window(self, handle):
+    def set_window(self, handle) -> None:
         self.webdriver.window_handle = handle
 
     def window_handles(self):
         return self.webdriver.handles
 
-    def load(self, url):
+    def load(self, url) -> None:
         self.webdriver.url = url
 
-    def wait(self):
+    def wait(self) -> bool:
         while True:
             try:
                 self.webdriver.execute_async_script("""let callback = arguments[arguments.length - 1];
@@ -126,7 +126,7 @@ addEventListener("__test_restart", e => {e.preventDefault(); callback(true)})"""
 
 
 class WebDriverBidiBluetoothProtocolPart(BidiBluetoothProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
@@ -138,7 +138,7 @@ class WebDriverBidiBluetoothProtocolPart(BidiBluetoothProtocolPart):
         await self.webdriver.bidi_session.bluetooth.handle_request_device_prompt(
             context=context, prompt=prompt, accept=accept, device=device)
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def simulate_adapter(self,
@@ -259,11 +259,11 @@ class WebDriverBidiBluetoothProtocolPart(BidiBluetoothProtocolPart):
             data=data)
 
 class WebDriverBidiBrowsingContextProtocolPart(BidiBrowsingContextProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def handle_user_prompt(self,
@@ -277,11 +277,11 @@ class WebDriverBidiBrowsingContextProtocolPart(BidiBrowsingContextProtocolPart):
 class WebDriverBidiEventsProtocolPart(BidiEventsProtocolPart):
     _subscriptions: List[str] = []
 
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def _contexts_to_top_contexts(self, contexts: Optional[List[str]]) -> Optional[List[str]]:
@@ -320,7 +320,7 @@ class WebDriverBidiEventsProtocolPart(BidiEventsProtocolPart):
         self._subscriptions.append(result["subscription"])
         return result
 
-    async def unsubscribe(self, subscriptions):
+    async def unsubscribe(self, subscriptions) -> None:
         self.logger.info("Unsubscribing from subscriptions %s" % subscriptions)
         await self.webdriver.bidi_session.session.unsubscribe(
             subscriptions=subscriptions)
@@ -353,11 +353,11 @@ class WebDriverBidiEventsProtocolPart(BidiEventsProtocolPart):
 
 
 class WebDriverBidiScriptProtocolPart(BidiScriptProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def call_function(self, function_declaration, target, arguments=None):
@@ -369,11 +369,11 @@ class WebDriverBidiScriptProtocolPart(BidiScriptProtocolPart):
 
 
 class WebDriverBidiEmulationProtocolPart(BidiEmulationProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def set_geolocation_override(self, coordinates, error, contexts):
@@ -391,11 +391,11 @@ class WebDriverBidiEmulationProtocolPart(BidiEmulationProtocolPart):
 
 
 class WebDriverBidiPermissionsProtocolPart(BidiPermissionsProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     async def set_permission(
@@ -412,11 +412,11 @@ class WebDriverBidiPermissionsProtocolPart(BidiPermissionsProtocolPart):
         return await self.webdriver.bidi_session.permissions.set_permission(**params)
 
 class WebDriverBidiWebExtensionsProtocolPart(WebExtensionsProtocolPart):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.webdriver = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def install_web_extension(self, type, path, value):
@@ -437,14 +437,14 @@ class WebDriverBidiWebExtensionsProtocolPart(WebExtensionsProtocolPart):
         return path
 
 class WebDriverTestharnessProtocolPart(TestharnessProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
         self.runner_handle = None
         self.persistent_test_window = None
         with open(os.path.join(here, "runner.js")) as f:
             self.runner_script = f.read()
 
-    def load_runner(self, url_protocol):
+    def load_runner(self, url_protocol) -> None:
         if self.runner_handle:
             self.webdriver.window_handle = self.runner_handle
         url = urljoin(self.parent.executor.server_url(url_protocol),
@@ -476,14 +476,14 @@ class WebDriverTestharnessProtocolPart(TestharnessProtocolPart):
             except webdriver_error.NoSuchWindowException:
                 pass
 
-    def reset_browser_state(self):
+    def reset_browser_state(self) -> None:
         """Reset browser-wide state that normally persists between tests."""
 
 
 class WebDriverPrintProtocolPart(PrintProtocolPart):
     CM_PER_INCH = 2.54
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
         self.runner_handle = None
 
@@ -528,7 +528,7 @@ render('%s').then(result => callback(result))""" % pdf_base64)
 
 
 class WebDriverSelectorProtocolPart(SelectorProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def elements_by_selector(self, selector):
@@ -536,7 +536,7 @@ class WebDriverSelectorProtocolPart(SelectorProtocolPart):
 
 
 class WebDriverAccessibilityProtocolPart(AccessibilityProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def get_computed_label(self, element):
@@ -547,7 +547,7 @@ class WebDriverAccessibilityProtocolPart(AccessibilityProtocolPart):
 
 
 class WebDriverClickProtocolPart(ClickProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def element(self, element):
@@ -556,7 +556,7 @@ class WebDriverClickProtocolPart(ClickProtocolPart):
 
 
 class WebDriverCookiesProtocolPart(CookiesProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def delete_all_cookies(self):
@@ -576,14 +576,14 @@ class WebDriverCookiesProtocolPart(CookiesProtocolPart):
 
 
 class WebDriverWindowProtocolPart(WindowProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def minimize(self):
         self.logger.debug("Minimizing")
         return self.webdriver.window.minimize()
 
-    def set_rect(self, rect):
+    def set_rect(self, rect) -> None:
         self.logger.debug("Restoring")
         self.webdriver.window.rect = rect
 
@@ -593,7 +593,7 @@ class WebDriverWindowProtocolPart(WindowProtocolPart):
 
 
 class WebDriverSendKeysProtocolPart(SendKeysProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def send_keys(self, element, keys):
@@ -608,18 +608,18 @@ class WebDriverSendKeysProtocolPart(SendKeysProtocolPart):
 
 
 class WebDriverActionSequenceProtocolPart(ActionSequenceProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
-    def send_actions(self, actions):
+    def send_actions(self, actions) -> None:
         self.webdriver.actions.perform(actions['actions'])
 
-    def release(self):
+    def release(self) -> None:
         self.webdriver.actions.release()
 
 
 class WebDriverTestDriverProtocolPart(TestDriverProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def run(self, url, script_resume, test_window=None):
@@ -770,11 +770,11 @@ class WebDriverTestDriverProtocolPart(TestDriverProtocolPart):
         deserialized_message = bidi_deserialize(message)
         return deserialized_message
 
-    def send_message(self, cmd_id, message_type, status, message=None):
+    def send_message(self, cmd_id, message_type, status, message=None) -> None:
         self.webdriver.execute_script(
             self._format_send_message_script(cmd_id, message_type, status, message))
 
-    def _format_send_message_script(self, cmd_id, message_type, status, message=None):
+    def _format_send_message_script(self, cmd_id, message_type, status, message=None) -> str:
         obj = {
             "cmd_id": cmd_id,
             "type": f"testdriver-{message_type}",
@@ -792,24 +792,24 @@ class WebDriverTestDriverProtocolPart(TestDriverProtocolPart):
                 webdriver_error.NoSuchFrameException) as e:
             raise ValueError from e
 
-    def _switch_to_parent_frame(self):
+    def _switch_to_parent_frame(self) -> None:
         self.webdriver.switch_to_parent_frame()
 
 
 class WebDriverGenerateTestReportProtocolPart(GenerateTestReportProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
-    def generate_test_report(self, message):
+    def generate_test_report(self, message) -> None:
         json_message = {"message": message}
         self.webdriver.send_session_command("POST", "reporting/generate_test_report", json_message)
 
 
 class WebDriverSetPermissionProtocolPart(SetPermissionProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
-    def set_permission(self, descriptor, state):
+    def set_permission(self, descriptor, state) -> None:
         permission_params_dict = {
             "descriptor": descriptor,
             "state": state,
@@ -818,7 +818,7 @@ class WebDriverSetPermissionProtocolPart(SetPermissionProtocolPart):
 
 
 class WebDriverVirtualAuthenticatorProtocolPart(VirtualAuthenticatorProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def add_virtual_authenticator(self, config):
@@ -844,7 +844,7 @@ class WebDriverVirtualAuthenticatorProtocolPart(VirtualAuthenticatorProtocolPart
 
 
 class WebDriverSPCTransactionsProtocolPart(SPCTransactionsProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_spc_transaction_mode(self, mode):
@@ -853,7 +853,7 @@ class WebDriverSPCTransactionsProtocolPart(SPCTransactionsProtocolPart):
 
 
 class WebDriverRPHRegistrationsProtocolPart(RPHRegistrationsProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_rph_registration_mode(self, mode):
@@ -862,7 +862,7 @@ class WebDriverRPHRegistrationsProtocolPart(RPHRegistrationsProtocolPart):
 
 
 class WebDriverFedCMProtocolPart(FedCMProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def cancel_fedcm_dialog(self):
@@ -899,7 +899,7 @@ class WebDriverDebugProtocolPart(DebugProtocolPart):
 
 
 class WebDriverVirtualSensorPart(VirtualSensorProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def create_virtual_sensor(self, sensor_type, sensor_params):
@@ -919,7 +919,7 @@ class WebDriverVirtualSensorPart(VirtualSensorProtocolPart):
 
 
 class WebDriverDevicePostureProtocolPart(DevicePostureProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_device_posture(self, posture):
@@ -931,7 +931,7 @@ class WebDriverDevicePostureProtocolPart(DevicePostureProtocolPart):
 
 
 class WebDriverStorageProtocolPart(StorageProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def run_bounce_tracking_mitigations(self):
@@ -939,7 +939,7 @@ class WebDriverStorageProtocolPart(StorageProtocolPart):
 
 
 class WebDriverVirtualPressureSourceProtocolPart(VirtualPressureSourceProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def create_virtual_pressure_source(self, source_type, metadata):
@@ -955,7 +955,7 @@ class WebDriverVirtualPressureSourceProtocolPart(VirtualPressureSourceProtocolPa
         return self.webdriver.send_session_command("DELETE", "pressuresource/%s" % source_type)
 
 class WebDriverProtectedAudienceProtocolPart(ProtectedAudienceProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_k_anonymity(self, owner, name, hashes):
@@ -963,7 +963,7 @@ class WebDriverProtectedAudienceProtocolPart(ProtectedAudienceProtocolPart):
         return self.webdriver.send_session_command("POST", "protected_audience/set_k_anonymity", body)
 
 class WebDriverDisplayFeaturesProtocolPart(DisplayFeaturesProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_display_features(self, features):
@@ -974,7 +974,7 @@ class WebDriverDisplayFeaturesProtocolPart(DisplayFeaturesProtocolPart):
         return self.webdriver.send_session_command("DELETE", "displayfeatures")
 
 class WebDriverGlobalPrivacyControlProtocolPart(GlobalPrivacyControlProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def set_global_privacy_control(self, gpc):
@@ -984,7 +984,7 @@ class WebDriverGlobalPrivacyControlProtocolPart(GlobalPrivacyControlProtocolPart
         return self.webdriver.get_global_privacy_control()
 
 class WebDriverWebExtensionsProtocolPart(WebExtensionsProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def install_web_extension(self, type, path, value):
@@ -1031,7 +1031,7 @@ class WebDriverProtocol(Protocol):
                   WebDriverGlobalPrivacyControlProtocolPart,
                   WebDriverWebExtensionsProtocolPart]
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         super().__init__(executor, browser)
         self.capabilities = capabilities
         if hasattr(browser, "capabilities"):
@@ -1054,7 +1054,7 @@ class WebDriverProtocol(Protocol):
         self.url = browser.webdriver_url
         self.webdriver = None
 
-    def connect(self):
+    def connect(self) -> None:
         """Connect to browser via WebDriver and crete a WebDriver session."""
         self.logger.debug("Connecting to WebDriver on URL: %s" % self.url)
 
@@ -1064,7 +1064,7 @@ class WebDriverProtocol(Protocol):
         self.webdriver = Session(host, port, capabilities=capabilities, enable_bidi=self.enable_bidi)
         self.webdriver.start()
 
-    def teardown(self):
+    def teardown(self) -> None:
         if not self.webdriver:
             return
         self.logger.debug("Hanging up on WebDriver session")
@@ -1094,7 +1094,7 @@ class WebDriverProtocol(Protocol):
             return False
         return True
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         self.testharness.load_runner(self.executor.last_environment["protocol"])
 
 
@@ -1110,15 +1110,15 @@ class WebDriverBidiProtocol(WebDriverProtocol):
                   *(part for part in WebDriverProtocol.implements)
                   ]
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         super().__init__(executor, browser, capabilities, **kwargs)
         self.loop = asyncio.new_event_loop()
 
-    def connect(self):
+    def connect(self) -> None:
         super().connect()
         self.loop.run_until_complete(self.webdriver.bidi_session.start(self.loop))
 
-    def teardown(self):
+    def teardown(self) -> None:
         try:
             self.loop.run_until_complete(self.webdriver.bidi_session.end())
         except Exception as e:
@@ -1142,7 +1142,7 @@ class WebDriverRun(TimedRunner):
             self.logger.error(msg)
             return ("INTERNAL-ERROR", msg)
 
-    def run_func(self):
+    def run_func(self) -> None:
         try:
             self.result = True, self.func(self.protocol, self.url, self.timeout)
         except (webdriver_error.TimeoutException, webdriver_error.ScriptTimeoutException):
@@ -1181,7 +1181,7 @@ class WebDriverTestharnessExecutor(TestharnessExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  close_after_done=True, capabilities=None, debug_info=None,
-                 cleanup_after_test=True, **kwargs):
+                 cleanup_after_test=True, **kwargs) -> None:
         """WebDriver-based executor for testharness.js tests"""
         TestharnessExecutor.__init__(self, logger, browser, server_config,
                                      timeout_multiplier=timeout_multiplier,
@@ -1196,14 +1196,14 @@ class WebDriverTestharnessExecutor(TestharnessExecutor):
         self.cleanup_after_test = cleanup_after_test
         self.initial_window_size = None
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> None:
         super().setup(runner, protocol)
         try:
             self.initial_window_size = self.protocol.window.get_rect()
         except Exception:
             pass
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         if new_environment["protocol"] != self.last_environment["protocol"]:
             self.protocol.testharness.load_runner(new_environment["protocol"])
 
@@ -1285,7 +1285,7 @@ class WebDriverRefTestExecutor(RefTestExecutor):
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, close_after_done=True,
                  debug_info=None, capabilities=None, debug_test=False,
-                 reftest_screenshot="unexpected", **kwargs):
+                 reftest_screenshot="unexpected", **kwargs) -> None:
         """WebDriver-based executor for reftests"""
         RefTestExecutor.__init__(self,
                                  logger,
@@ -1306,7 +1306,7 @@ class WebDriverRefTestExecutor(RefTestExecutor):
         with open(os.path.join(here, "test-wait.js")) as f:
             self.wait_script = f.read() % {"classname": "reftest-wait"}
 
-    def reset(self):
+    def reset(self) -> None:
         self.implementation.reset()
 
     def do_test(self, test):
@@ -1367,7 +1367,7 @@ class WebDriverRefTestExecutor(RefTestExecutor):
 class WebDriverPrintRefTestExecutor(WebDriverRefTestExecutor):
     is_print = True
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> None:
         super().setup(runner, protocol)
         self.protocol.pdf_print.load_runner()
         self.has_window = False
@@ -1416,7 +1416,7 @@ class WebDriverCrashtestExecutor(CrashtestExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, close_after_done=True,
-                 debug_info=None, capabilities=None, **kwargs):
+                 debug_info=None, capabilities=None, **kwargs) -> None:
         """WebDriver-based executor for crashtests"""
         CrashtestExecutor.__init__(self,
                                    logger,

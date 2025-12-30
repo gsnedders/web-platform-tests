@@ -100,11 +100,11 @@ class ChromeDriverLeakProtocolPart(LeakProtocolPart):
 class ChromeDriverTestDriverProtocolPart(WebDriverTestDriverProtocolPart):
     """An interface to the browser-side testdriver infrastructure that lazily settles calls."""
 
-    def setup(self):
+    def setup(self) -> None:
         super().setup()
         self._pending_message = ""
 
-    def send_message(self, cmd_id, message_type, status, message=None):
+    def send_message(self, cmd_id, message_type, status, message=None) -> None:
         message_script = self._format_send_message_script(cmd_id, message_type, status, message)
         if message_type == "complete":
             assert not self._pending_message, self._pending_message
@@ -134,7 +134,7 @@ class ChromeDriverTestharnessProtocolPart(WebDriverTestharnessProtocolPart):
     The main difference from the default WebDriver testharness implementation is
     that the test window can be reused between tests for better performance.
     """
-    def reset_browser_state(self):
+    def reset_browser_state(self) -> None:
         for command, params in [
             # Reset default permissions that `test_driver.set_permission(...)`
             # may have altered.
@@ -175,7 +175,7 @@ class ChromeDriverDevToolsProtocolPart(ProtocolPart):
     """
     name = "cdp"
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def execute_cdp_command(self, command, params=None):
@@ -188,7 +188,7 @@ class ChromeDriverDevToolsProtocolPart(ProtocolPart):
 class ChromeDriverTracingProtocolPart(ProtocolPart):
     name = "tracing"
 
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def get_trace(self):
@@ -233,7 +233,7 @@ class ChromeDriverProtocol(WebDriverProtocol):
     # Prefix to apply to vendor-specific WebDriver extension commands.
     vendor_prefix = "goog"
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         self.implements = list(ChromeDriverProtocol.implements)
         if getattr(browser, "leak_check", False):
             self.implements.append(ChromeDriverLeakProtocolPart)
@@ -255,7 +255,7 @@ class ChromeDriverBidiProtocol(WebDriverBidiProtocol):
     # Prefix to apply to vendor-specific WebDriver extension commands.
     vendor_prefix = "goog"
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         self.implements = list(ChromeDriverBidiProtocol.implements)
         if getattr(browser, "leak_check", False):
             self.implements.append(ChromeDriverLeakProtocolPart)
@@ -292,7 +292,7 @@ def _evaluate_sanitized_result(executor_cls):
 class ChromeDriverCrashTestExecutor(WebDriverCrashtestExecutor):
     protocol_cls = ChromeDriverProtocol
 
-    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs):
+    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.sanitizer_enabled = sanitizer_enabled
         self.enable_tracing = enable_tracing
@@ -308,7 +308,7 @@ class ChromeDriverCrashTestExecutor(WebDriverCrashtestExecutor):
 class ChromeDriverRefTestExecutor(WebDriverRefTestExecutor):
     protocol_cls = ChromeDriverProtocol
 
-    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs):
+    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.sanitizer_enabled = sanitizer_enabled
         self.enable_tracing = enable_tracing
@@ -324,7 +324,7 @@ class ChromeDriverRefTestExecutor(WebDriverRefTestExecutor):
 class ChromeDriverTestharnessExecutor(WebDriverTestharnessExecutor):
 
     def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, reuse_window=False,
-                 **kwargs):
+                 **kwargs) -> None:
         require_webdriver_bidi = kwargs.get("browser_settings", {}).get(
             "require_webdriver_bidi", None)
         if require_webdriver_bidi:
@@ -373,7 +373,7 @@ class ChromeDriverTestharnessExecutor(WebDriverTestharnessExecutor):
 class ChromeDriverPrintRefTestExecutor(WebDriverPrintRefTestExecutor):
     protocol_cls = ChromeDriverProtocol
 
-    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs):
+    def __init__(self, *args, sanitizer_enabled=False, enable_tracing=False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.sanitizer_enabled = sanitizer_enabled
         self.enable_tracing = enable_tracing

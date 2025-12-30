@@ -8,7 +8,7 @@ from .. import manifestupdate
 from .. import wptmanifest
 
 
-def test_unconditional_default_promotion():
+def test_unconditional_default_promotion() -> None:
     contents_before = io.BytesIO(
         textwrap.dedent(
             """\
@@ -58,7 +58,7 @@ def test_unconditional_default_promotion():
     assert manifest.node == wptmanifest.parse(contents_after)
 
 
-def test_none_value():
+def test_none_value() -> None:
     contents_before = io.BytesIO(
         textwrap.dedent(
             """\

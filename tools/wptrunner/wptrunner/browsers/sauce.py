@@ -17,6 +17,8 @@ from .base import get_timeout_multiplier   # noqa: F401
 from ..executors import executor_kwargs as base_executor_kwargs
 from ..executors.executorselenium import (SeleniumTestharnessExecutor,  # noqa: F401
                                           SeleniumRefTestExecutor)  # noqa: F401
+from types import TracebackType
+from typing import Optional, Type
 
 here = os.path.dirname(__file__)
 # Number of seconds to wait between polling operations when detecting status of
@@ -81,7 +83,7 @@ def get_sauce_config(**kwargs):
     return data
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "sauce_browser")
     require_arg(kwargs, "sauce_platform")
     require_arg(kwargs, "sauce_version")
@@ -112,7 +114,7 @@ def env_options():
     return {"supports_debugger": False}
 
 
-def get_tar(url, dest):
+def get_tar(url, dest) -> None:
     resp = requests.get(url, stream=True)
     resp.raise_for_status()
     with tarfile.open(fileobj=StringIO(resp.raw.read())) as f:
@@ -121,7 +123,7 @@ def get_tar(url, dest):
 
 class SauceConnect():
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         self.sauce_user = kwargs["sauce_user"]
         self.sauce_key = kwargs["sauce_key"]
         self.sauce_tunnel_id = kwargs["sauce_tunnel_id"]
@@ -180,7 +182,7 @@ class SauceConnect():
         if self.sc_process.returncode is not None:
             raise SauceException("Unable to start Sauce Connect Proxy. Process exited with code %s", self.sc_process.returncode)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
         self.env_config = None
         self.quit()
         if self.temp_dir and os.path.exists(self.temp_dir):
@@ -189,14 +191,14 @@ class SauceConnect():
             except OSError:
                 pass
 
-    def upload_prerun_exec(self, file_name):
+    def upload_prerun_exec(self, file_name) -> None:
         auth = (self.sauce_user, self.sauce_key)
         url = f"https://saucelabs.com/rest/v1/storage/{self.sauce_user}/{file_name}?overwrite=true"
 
         with open(os.path.join(here, 'sauce_setup', file_name), 'rb') as f:
             requests.post(url, data=f, auth=auth)
 
-    def quit(self):
+    def quit(self) -> None:
         """The Sauce Connect process may be managing an active "tunnel" to the
         Sauce Labs service. Issue a request to the process to close any tunnels
         and exit. If this does not occur within 5 seconds, force the process to
@@ -221,25 +223,25 @@ class SauceException(Exception):
 class SauceBrowser(Browser):
     init_timeout = 300
 
-    def __init__(self, logger, sauce_config, **kwargs):
+    def __init__(self, logger, sauce_config, **kwargs) -> None:
         super().__init__(logger, **kwargs)
         self.sauce_config = sauce_config
 
-    def start(self, **kwargs):
+    def start(self, **kwargs) -> None:
         pass
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         pass
 
     @property
     def pid(self):
         return None
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         # TODO: Should this check something about the connection?
         return True
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         pass
 
     def executor_browser(self):

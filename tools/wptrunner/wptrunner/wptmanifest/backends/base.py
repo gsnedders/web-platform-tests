@@ -41,7 +41,7 @@ class Compiler(NodeVisitor):
     def _initial_output_node(self, node, **kwargs):
         return self.data_cls_getter(None, None)(node, **kwargs)
 
-    def visit_DataNode(self, node):
+    def visit_DataNode(self, node) -> None:
         if node is not self.tree:
             output_parent = self.output_node
             self.output_node = self.data_cls_getter(self.output_node, node)(node, **self._kwargs)
@@ -128,22 +128,22 @@ class Compiler(NodeVisitor):
 
 
 class ManifestItem:
-    def __init__(self, node, **kwargs):
+    def __init__(self, node, **kwargs) -> None:
         self.parent = None
         self.node = node
         self.children = []
         self._data = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__class__} {self.node.data}>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         rv = [repr(self)]
         for item in self.children:
             rv.extend("  %s" % line for line in str(item).split("\n"))
         return "\n".join(rv)
 
-    def set_defaults(self):
+    def set_defaults(self) -> None:
         pass
 
     @property
@@ -169,10 +169,10 @@ class ManifestItem:
                 return node._data[key]
         raise KeyError
 
-    def set(self, name, value):
+    def set(self, name, value) -> None:
         self._data[name] = value
 
-    def remove(self):
+    def remove(self) -> None:
         if self.parent:
             self.parent.children.remove(self)
             self.parent = None
@@ -182,7 +182,7 @@ class ManifestItem:
             if item.name == name or name is None:
                 yield item
 
-    def has_key(self, key):
+    def has_key(self, key) -> bool:
         for node in [self, self.root]:
             if key in node._data:
                 return True

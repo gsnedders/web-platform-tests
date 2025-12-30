@@ -37,7 +37,7 @@ __wptrunner__ = {
 }
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "binary")
 
 
@@ -85,7 +85,7 @@ class ServoWebDriverBrowser(WebDriverBrowser):
 
     def __init__(self, logger, binary, debug_info=None, webdriver_host="127.0.0.1",
                  server_config=None, binary_args=None,
-                 user_stylesheets=None, headless=None, **kwargs):
+                 user_stylesheets=None, headless=None, **kwargs) -> None:
         hosts_path = write_hosts_file(server_config)
         env = os.environ.copy()
         env["HOST_FILE"] = hosts_path
@@ -128,10 +128,10 @@ class ServoWebDriverBrowser(WebDriverBrowser):
     def make_command(self):
         return [self.webdriver_binary, f"--webdriver={self.port}"] + self.webdriver_args
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         os.remove(self.hosts_path)
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         # This is broken. It is always True.
         if not super().is_alive():
             return False
@@ -148,7 +148,7 @@ class ServoWebDriverBrowser(WebDriverBrowser):
 
         return True
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         retry_cnt = 0
         while self.is_alive():
             self.logger.info("Trying to shut down gracefully by extension command")

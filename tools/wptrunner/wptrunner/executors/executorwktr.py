@@ -40,7 +40,7 @@ class WKTRTestPart(ProtocolPart):
     name = "wktr_test"
     eof_marker = '#EOF\n'  # Marker sent by wktr after blocks.
 
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.stdout_queue = parent.browser.stdout_queue
         self.stdin_queue = parent.browser.stdin_queue
@@ -61,7 +61,7 @@ class WKTRTestPart(ProtocolPart):
 
         return text, image
 
-    def _send_command(self, command):
+    def _send_command(self, command) -> None:
         """Sends a single `command`, i.e. a URL to open, to wktr.
         """
         self.stdin_queue.put((command + "\n").encode("utf-8"))
@@ -130,7 +130,7 @@ class WKTRErrorsPart(ProtocolPart):
     """
     name = "wktr_errors"
 
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         super().__init__(parent)
         self.stderr_queue = parent.browser.stderr_queue
 
@@ -150,13 +150,13 @@ class WKTRErrorsPart(ProtocolPart):
 class WKTRProtocol(Protocol):
     implements = [WKTRTestPart, WKTRErrorsPart]
 
-    def connect(self):
+    def connect(self) -> None:
         pass
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         pass
 
-    def teardown(self):
+    def teardown(self) -> None:
         # Close the queue properly to avoid broken pipe spam in the log.
         self.browser.stdin_queue.close()
         self.browser.stdin_queue.join_thread()
@@ -180,13 +180,13 @@ def _convert_exception(test, exception, errors):
 
 class WKTRRefTestExecutor(RefTestExecutor):
     def __init__(self, logger, browser, server_config, timeout_multiplier=1, screenshot_cache=None,
-            debug_info=None, reftest_screenshot="unexpected", **kwargs):
+            debug_info=None, reftest_screenshot="unexpected", **kwargs) -> None:
         super().__init__(logger, browser, server_config, timeout_multiplier, screenshot_cache,
                 debug_info, reftest_screenshot, **kwargs)
         self.implementation = RefTestImplementation(self)
         self.protocol = WKTRProtocol(self, browser)
 
-    def reset(self):
+    def reset(self) -> None:
         self.implementation.reset()
 
     def do_test(self, test):
@@ -210,13 +210,13 @@ class WKTRRefTestExecutor(RefTestExecutor):
 
         return True, b64encode(image).decode()
 
-    def wait(self):
+    def wait(self) -> None:
         return
 
 
 class WKTRCrashtestExecutor(CrashtestExecutor):
     def __init__(self, logger, browser, server_config, timeout_multiplier=1, debug_info=None,
-            **kwargs):
+            **kwargs) -> None:
         super().__init__(logger, browser, server_config, timeout_multiplier, debug_info, **kwargs)
         self.protocol = WKTRProtocol(self, browser)
 
@@ -228,13 +228,13 @@ class WKTRCrashtestExecutor(CrashtestExecutor):
         except BaseException as exception:
             return _convert_exception(test, exception, self.protocol.wktr_errors.read_errors())
 
-    def wait(self):
+    def wait(self) -> None:
         return
 
 
 class WKTRTestharnessExecutor(TestharnessExecutor):
     def __init__(self, logger, browser, server_config, timeout_multiplier=1, debug_info=None,
-            **kwargs):
+            **kwargs) -> None:
         super().__init__(logger, browser, server_config, timeout_multiplier, debug_info, **kwargs)
         self.protocol = WKTRProtocol(self, browser)
 
@@ -264,5 +264,5 @@ class WKTRTestharnessExecutor(TestharnessExecutor):
         except BaseException as exception:
             return _convert_exception(test, exception, self.protocol.wktr_errors.read_errors())
 
-    def wait(self):
+    def wait(self) -> None:
         return

@@ -28,7 +28,7 @@ class EdgeDriverTestharnessExecutor(WebDriverTestharnessExecutor):
 class EdgeDriverPrintRefTestExecutor(EdgeDriverRefTestExecutor):
     protocol_cls = EdgeDriverProtocol
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> None:
         super().setup(runner, protocol)
         self.protocol.pdf_print.load_runner()
         self.has_window = False

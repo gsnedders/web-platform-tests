@@ -34,7 +34,7 @@ __wptrunner__ = {"product": "WebKitTestRunner",
                  "timeout_multiplier": "get_timeout_multiplier",}
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     pass
 
 
@@ -81,7 +81,7 @@ class WKTRBrowser(Browser):
     interact with WebKitTestRunner through its protocol mode.
     """
 
-    def __init__(self, logger, binary="WebKitTestRunner", binary_args=[], **kwargs):
+    def __init__(self, logger, binary="WebKitTestRunner", binary_args=[], **kwargs) -> None:
         super().__init__(logger, **kwargs)
 
         self._args = [binary] + binary_args
@@ -118,7 +118,7 @@ class WKTRBrowser(Browser):
 
         self._extra_env = env
 
-    def start(self, group_metadata, **kwargs):
+    def start(self, group_metadata, **kwargs) -> None:
         self.logger.debug("Starting WebKitTestRunner: %s..." % self._args[0])
         #self.logger.debug(repr(self._args))
 
@@ -183,7 +183,7 @@ class WKTRBrowser(Browser):
 
         return stopped
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
     @property
@@ -200,14 +200,14 @@ class WKTRBrowser(Browser):
                                  "stderr_queue": self._stderr_queue,
                                  "stdin_queue": self._stdin_queue}
 
-    def check_crash(self, process, test):
+    def check_crash(self, process, test) -> bool:
         return not self.is_alive()
 
     def _create_reader_thread(self, stream, queue):
         """This creates (and starts) a background thread which reads lines from `stream` and
         puts them into `queue` until `stream` reports EOF.
         """
-        def reader_thread(stream, queue):
+        def reader_thread(stream, queue) -> None:
             while True:
                 line = stream.readline()
                 if not line:
@@ -226,7 +226,7 @@ class WKTRBrowser(Browser):
         """This creates (and starts) a background thread which gets items from `queue` and
         writes them into `stream` until it encounters a None item in the queue.
         """
-        def writer_thread(stream, queue):
+        def writer_thread(stream, queue) -> None:
             while True:
                 line = queue.get()
                 if not line:

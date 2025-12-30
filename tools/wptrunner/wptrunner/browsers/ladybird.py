@@ -26,7 +26,7 @@ __wptrunner__ = {
     }
 }
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "webdriver_binary")
 
 

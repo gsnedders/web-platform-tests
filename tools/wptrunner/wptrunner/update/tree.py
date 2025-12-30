@@ -27,39 +27,39 @@ def get_unique_name(existing, initial):
 class NoVCSTree:
     name = "non-vcs"
 
-    def __init__(self, root=None):
+    def __init__(self, root=None) -> None:
         if root is None:
             root = os.path.abspath(os.curdir)
         self.root = root
 
     @classmethod
-    def is_type(cls, path=None):
+    def is_type(cls, path=None) -> bool:
         return True
 
     @property
-    def is_clean(self):
+    def is_clean(self) -> bool:
         return True
 
-    def add_new(self, prefix=None):
+    def add_new(self, prefix=None) -> None:
         pass
 
-    def add_ignored(self, sync_tree, prefix):
+    def add_ignored(self, sync_tree, prefix) -> None:
         pass
 
-    def create_patch(self, patch_name, message):
+    def create_patch(self, patch_name, message) -> None:
         pass
 
-    def update_patch(self, include=None):
+    def update_patch(self, include=None) -> None:
         pass
 
-    def commit_patch(self):
+    def commit_patch(self) -> None:
         pass
 
 
 class HgTree:
     name = "mercurial"
 
-    def __init__(self, root=None):
+    def __init__(self, root=None) -> None:
         if root is None:
             root = hg("root").strip()
         self.root = root
@@ -70,12 +70,12 @@ class HgTree:
         del rv['hg']
         return rv
 
-    def __setstate__(self, dict):
+    def __setstate__(self, dict) -> None:
         self.__dict__.update(dict)
         self.hg = vcs.bind_to_repo(vcs.hg, self.root)
 
     @classmethod
-    def is_type(cls, path=None):
+    def is_type(cls, path=None) -> bool:
         kwargs = {"log_error": False}
         if path is not None:
             kwargs["repo"] = path
@@ -89,17 +89,17 @@ class HgTree:
     def is_clean(self):
         return self.hg("status").strip() == b""
 
-    def add_new(self, prefix=None):
+    def add_new(self, prefix=None) -> None:
         if prefix is not None:
             args = ("-I", prefix)
         else:
             args = ()
         self.hg("add", *args)
 
-    def add_ignored(self, sync_tree, prefix):
+    def add_ignored(self, sync_tree, prefix) -> None:
         pass
 
-    def create_patch(self, patch_name, message):
+    def create_patch(self, patch_name, message) -> None:
         try:
             self.hg("qinit", log_error=False)
         except subprocess.CalledProcessError:
@@ -115,7 +115,7 @@ class HgTree:
 
         self.hg("qnew", test_name, "-X", self.root, "-m", message)
 
-    def update_patch(self, include=None):
+    def update_patch(self, include=None) -> bool:
         if include is not None:
             args = []
             for item in include:
@@ -126,10 +126,10 @@ class HgTree:
         self.hg("qrefresh", *args)
         return True
 
-    def commit_patch(self):
+    def commit_patch(self) -> None:
         self.hg("qfinish")
 
-    def contains_commit(self, commit):
+    def contains_commit(self, commit) -> bool:
         try:
             self.hg("identify", "-r", commit.sha1)
             return True
@@ -140,7 +140,7 @@ class HgTree:
 class GitTree:
     name = "git"
 
-    def __init__(self, root=None, log_error=True):
+    def __init__(self, root=None, log_error=True) -> None:
         if root is None:
             root = git("rev-parse", "--show-toplevel", log_error=log_error).strip().decode('utf-8')
         self.root = root
@@ -153,12 +153,12 @@ class GitTree:
         del rv['git']
         return rv
 
-    def __setstate__(self, dict):
+    def __setstate__(self, dict) -> None:
         self.__dict__.update(dict)
         self.git = vcs.bind_to_repo(vcs.git, self.root)
 
     @classmethod
-    def is_type(cls, path=None):
+    def is_type(cls, path=None) -> bool:
         kwargs = {"log_error": False}
         if path is not None:
             kwargs["repo"] = path
@@ -180,7 +180,7 @@ class GitTree:
     def is_clean(self):
         return self.git("status").strip() == b""
 
-    def add_new(self, prefix=None):
+    def add_new(self, prefix=None) -> None:
         """Add files to the staging area.
 
         :param prefix: None to include all files or a path prefix to
@@ -192,7 +192,7 @@ class GitTree:
             args = ["--no-ignore-removal", prefix]
         self.git("add", *args)
 
-    def add_ignored(self, sync_tree, prefix):
+    def add_ignored(self, sync_tree, prefix) -> None:
         """Add files to the staging area that are explicitly ignored by git.
 
         :param prefix: None to include all files or a path prefix to
@@ -254,11 +254,11 @@ class GitTree:
                 return self.commit_cls(self, sha1.decode('utf-8'))
         assert False
 
-    def create_patch(self, patch_name, message):
+    def create_patch(self, patch_name, message) -> None:
         # In git a patch is actually a commit
         self.message = message
 
-    def update_patch(self, include=None):
+    def update_patch(self, include=None) -> bool:
         """Commit the staged changes, or changes to listed files.
 
         :param include: Either None, to commit staged changes, or a list
@@ -275,7 +275,7 @@ class GitTree:
             return True
         return False
 
-    def commit_patch(self):
+    def commit_patch(self) -> bool:
         assert self.message is not None
 
         if self.git("diff", "--name-only", "--staged", "-z").strip():
@@ -284,11 +284,11 @@ class GitTree:
 
         return False
 
-    def init(self):
+    def init(self) -> None:
         self.git("init")
         assert vcs.is_git_root(self.root)
 
-    def checkout(self, rev, branch=None, force=False):
+    def checkout(self, rev, branch=None, force=False) -> None:
         """Checkout a particular revision, optionally into a named branch.
 
         :param rev: Revision identifier (e.g. SHA1) to checkout
@@ -310,7 +310,7 @@ class GitTree:
         args.append(rev)
         self.git("checkout", *args)
 
-    def update(self, remote, remote_branch, local_branch):
+    def update(self, remote, remote_branch, local_branch) -> None:
         """Fetch from the remote and checkout into a local branch.
 
         :param remote: URL to the remote repository
@@ -324,7 +324,7 @@ class GitTree:
         self.checkout(local_branch)
         self.git("submodule", "update", "--init", "--recursive")
 
-    def clean(self):
+    def clean(self) -> None:
         self.git("checkout", self.rev)
         self.git("branch", "-D", self.local_branch)
 
@@ -353,7 +353,7 @@ class GitTree:
             rv.append(parts[1])
         return rv
 
-    def contains_commit(self, commit):
+    def contains_commit(self, commit) -> bool:
         try:
             self.git("rev-parse", "--verify", commit.sha1)
             return True
@@ -362,14 +362,14 @@ class GitTree:
 
 
 class CommitMessage:
-    def __init__(self, text):
+    def __init__(self, text) -> None:
         self.text = text
         self._parse_message()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.text
 
-    def _parse_message(self):
+    def _parse_message(self) -> None:
         lines = self.text.splitlines()
         self.full_summary = lines[0]
         self.body = "\n".join(lines[1:])
@@ -380,7 +380,7 @@ class Commit:
 
     _sha1_re = re.compile("^[0-9a-f]{40}$")
 
-    def __init__(self, tree, sha1):
+    def __init__(self, tree, sha1) -> None:
         """Object representing a commit in a specific GitTree.
 
         :param tree: GitTree to which this commit belongs.
@@ -398,7 +398,7 @@ class Commit:
         del rv['git']
         return rv
 
-    def __setstate__(self, dict):
+    def __setstate__(self, dict) -> None:
         self.__dict__.update(dict)
         self.git = self.tree.git
 

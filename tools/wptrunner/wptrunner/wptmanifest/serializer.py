@@ -25,7 +25,7 @@ def escape(string, extras=""):
 
 
 class ManifestSerializer(NodeVisitor):
-    def __init__(self, skip_empty_data=False):
+    def __init__(self, skip_empty_data=False) -> None:
         self.skip_empty_data = skip_empty_data
 
     def serialize(self, root):

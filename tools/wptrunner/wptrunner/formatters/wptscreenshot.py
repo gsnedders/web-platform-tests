@@ -9,11 +9,11 @@ DEFAULT_API = "https://wpt.fyi/api/screenshots/hashes"
 class WptscreenshotFormatter(BaseFormatter):  # type: ignore
     """Formatter that outputs screenshots in the format expected by wpt.fyi."""
 
-    def __init__(self, api=None):
+    def __init__(self, api=None) -> None:
         self.api = api or DEFAULT_API
         self.cache = set()
 
-    def suite_start(self, data):
+    def suite_start(self, data) -> None:
         # TODO(Hexcles): We might want to move the request into a different
         # place, make it non-blocking, and handle errors better.
         params = {}

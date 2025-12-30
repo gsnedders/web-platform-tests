@@ -19,9 +19,9 @@ logger = logging.getLogger()
 
 
 @active_products("product")
-def test_webkitgtk_certificate_domain_list(product):
+def test_webkitgtk_certificate_domain_list(product) -> None:
 
-    def domain_is_inside_certificate_list_cert(domain_to_find, webkitgtk_certificate_list, cert_file):
+    def domain_is_inside_certificate_list_cert(domain_to_find, webkitgtk_certificate_list, cert_file) -> bool:
         for domain in webkitgtk_certificate_list:
             if domain["host"] == domain_to_find and domain["certificateFile"] == cert_file:
                 return True
@@ -58,7 +58,7 @@ def test_webkitgtk_certificate_domain_list(product):
         # function only really wants an object with the config key
 
         class MockEnvironment:
-            def __init__(self, config):
+            def __init__(self, config) -> None:
                 self.config = config
 
         executor_args = product_data.get_executor_kwargs(None,

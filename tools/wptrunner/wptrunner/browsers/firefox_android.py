@@ -42,7 +42,7 @@ __wptrunner__ = {"product": "firefox_android",
                  "timeout_multiplier": "get_timeout_multiplier"}
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     pass
 
 
@@ -158,7 +158,7 @@ class ProfileCreator(FirefoxProfileCreator):
     def __init__(self, logger, prefs_root, config, test_type, extra_prefs,
                  disable_fission, debug_test, browser_channel, binary,
                  package_name, certutil_binary, ca_certificate_path,
-                 allow_list_paths=None):
+                 allow_list_paths=None) -> None:
 
         super().__init__(logger, prefs_root, config, test_type, extra_prefs,
                          disable_fission, debug_test, browser_channel, None,
@@ -169,7 +169,7 @@ class ProfileCreator(FirefoxProfileCreator):
     def default_prefs():
         return {"fission.disableSessionHistoryInParent": False}
 
-    def _set_required_prefs(self, profile):
+    def _set_required_prefs(self, profile) -> None:
         profile.set_preferences({
             "network.dns.localDomains": ",".join(self.config.domains_set),
             "dom.disable_open_during_load": False,
@@ -220,7 +220,7 @@ class FirefoxAndroidBrowser(Browser):
                  binary_args=None, timeout_multiplier=None, leak_check=False, asan=False,
                  chaos_mode_flags=None, config=None, browser_channel="nightly",
                  install_fonts=False, tests_root=None, specialpowers_path=None, adb_binary=None,
-                 debug_test=False, disable_fission=False, env_extras=None, **kwargs):
+                 debug_test=False, disable_fission=False, env_extras=None, **kwargs) -> None:
 
         super().__init__(logger, **kwargs)
         self.prefs_root = prefs_root
@@ -275,7 +275,7 @@ class FirefoxAndroidBrowser(Browser):
                           "testdriver": test.test_type == "testharness"}
         return self._settings
 
-    def start(self, **kwargs):
+    def start(self, **kwargs) -> None:
         if self.marionette_port is None:
             self.marionette_port = get_free_port()
 
@@ -334,7 +334,7 @@ class FirefoxAndroidBrowser(Browser):
 
         self.logger.debug("%s Started" % self.package_name)
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         if self.runner is not None:
             if self.runner.device.connected:
                 try:
@@ -362,7 +362,7 @@ class FirefoxAndroidBrowser(Browser):
             return self.runner.is_running()
         return False
 
-    def cleanup(self, force=False):
+    def cleanup(self, force=False) -> None:
         self.stop(force)
 
     def executor_browser(self):
@@ -387,7 +387,7 @@ class FirefoxAndroidBrowser(Browser):
 
 
 class FirefoxAndroidWdSpecBrowser(FirefoxWdSpecBrowser):
-    def __init__(self, logger, config=None, device_serial=None, adb_binary=None, **kwargs):
+    def __init__(self, logger, config=None, device_serial=None, adb_binary=None, **kwargs) -> None:
 
         if "profile_creator_cls" not in kwargs:
             kwargs["profile_creator_cls"] = ProfileCreator
@@ -400,7 +400,7 @@ class FirefoxAndroidWdSpecBrowser(FirefoxWdSpecBrowser):
         context = get_app_context("fennec")(adb_path=adb_binary, device_serial=self.device_serial)
         self.device = context.get_device(context.adb, self.device_serial)
 
-    def start(self, group_metadata, **kwargs):
+    def start(self, group_metadata, **kwargs) -> None:
         for ports in self.config.ports.values():
             for port in ports:
                 self.device.reverse(
@@ -408,7 +408,7 @@ class FirefoxAndroidWdSpecBrowser(FirefoxWdSpecBrowser):
                     remote=f"tcp:{port}")
         super().start(group_metadata, **kwargs)
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         try:
             self.device.remove_reverses()
         except Exception as e:

@@ -31,7 +31,7 @@ __wptrunner__ = {"product": "chrome_android",
 _wptserve_ports = set()
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "package_name")
     require_arg(kwargs, "webdriver_binary")
 
@@ -79,17 +79,17 @@ def env_options():
 
 
 class LogcatRunner:
-    def __init__(self, logger, browser):
+    def __init__(self, logger, browser) -> None:
         self.logger = logger
         self.browser = browser
 
-    def start(self):
+    def start(self) -> None:
         try:
             self._run()
         except KeyboardInterrupt:
             self.stop()
 
-    def _run(self):
+    def _run(self) -> None:
         try:
             # TODO: adb logcat -c fail randomly with message
             # "failed to clear the 'main' log"
@@ -107,7 +107,7 @@ class LogcatRunner:
         self._output_handler.after_process_start(self._proc.pid)
         self._output_handler.start()
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         if self.is_alive():
             kill_result = self._proc.kill()
             if force and kill_result != 0:
@@ -126,7 +126,7 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
                  device_serial=None,
                  stackwalk_binary=None,
                  symbols_path=None,
-                 **kwargs):
+                 **kwargs) -> None:
         super().__init__(logger, **kwargs)
         self.adb_binary = adb_binary or "adb"
         self.device_serial = device_serial[self.manager_number]
@@ -134,11 +134,11 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
         self.symbols_path = symbols_path
         self.logcat_runner = LogcatRunner(self.logger, self)
 
-    def setup(self):
+    def setup(self) -> None:
         self.setup_adb_reverse()
         self.logcat_runner.start()
 
-    def _adb_run(self, args):
+    def _adb_run(self, args) -> None:
         cmd = [self.adb_binary]
         if self.device_serial:
             cmd.extend(['-s', self.device_serial])
@@ -152,7 +152,7 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
                 cmd_arg("url-base", self.base_path),
                 cmd_arg("enable-chrome-logs")] + self.webdriver_args
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         super().cleanup()
         self._adb_run(['forward', '--remove-all'])
         self._adb_run(['reverse', '--remove-all'])
@@ -167,7 +167,7 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
         }
         return cls, kwargs
 
-    def clear_log(self):
+    def clear_log(self) -> None:
         self._adb_run(['logcat', '-c'])
 
     def logcat_cmd(self):
@@ -177,13 +177,13 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
         cmd.extend(['logcat', '*:D'])
         return cmd
 
-    def check_crash(self, process, test):
+    def check_crash(self, process, test) -> bool:
         self.maybe_parse_tombstone()
         # Existence of a tombstone does not necessarily mean test target has
         # crashed. Always return False so we don't change the test results.
         return False
 
-    def maybe_parse_tombstone(self):
+    def maybe_parse_tombstone(self) -> None:
         if self.stackwalk_binary:
             cmd = [self.stackwalk_binary, "-a", "-w"]
             if self.device_serial:
@@ -193,7 +193,7 @@ class ChromeAndroidBrowserBase(WebDriverBrowser):
             for line in raw_output.splitlines():
                 self.logger.process_output("TRACE", line, "logcat")
 
-    def setup_adb_reverse(self):
+    def setup_adb_reverse(self) -> None:
         self._adb_run(['wait-for-device'])
         self._adb_run(['forward', '--remove-all'])
         self._adb_run(['reverse', '--remove-all'])
@@ -207,7 +207,7 @@ class ChromeAndroidBrowser(ChromeAndroidBrowserBase):
     ``wptrunner.webdriver.ChromeDriverServer``.
     """
 
-    def __init__(self, logger, *, package_name, **kwargs):
+    def __init__(self, logger, *, package_name, **kwargs) -> None:
         super().__init__(logger, **kwargs)
         self.package_name = package_name
         self.wptserver_ports = _wptserve_ports

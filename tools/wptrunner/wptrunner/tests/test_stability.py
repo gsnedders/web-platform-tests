@@ -10,14 +10,14 @@ from mozlog.handlers import StreamHandler
 
 from .. import stability, wptrunner
 
-def test_is_inconsistent():
+def test_is_inconsistent() -> None:
     assert stability.is_inconsistent({"PASS": 10}, 10) is False
     assert stability.is_inconsistent({"PASS": 9}, 10) is True
     assert stability.is_inconsistent({"PASS": 9, "FAIL": 1}, 10) is True
     assert stability.is_inconsistent({"PASS": 8, "FAIL": 1}, 10) is True
 
 
-def test_find_slow_status():
+def test_find_slow_status() -> None:
     assert stability.find_slow_status({
         "longest_duration": {"TIMEOUT": 10},
         "timeout": 10}) is None
@@ -40,7 +40,7 @@ def test_find_slow_status():
         "longest_duration": {"SKIP": 0}}) is None
 
 
-def test_get_steps():
+def test_get_steps() -> None:
     logger = None
 
     steps = stability.get_steps(logger, 0, 0, [])
@@ -77,7 +77,7 @@ def test_get_steps():
         "Running tests in a loop with restarts %d times" % repeat_restart)
 
 
-def test_log_handler():
+def test_log_handler() -> None:
     handler = stability.LogHandler()
     data = OrderedDict()
     data["test"] = "test_name"
@@ -128,7 +128,7 @@ def test_log_handler():
     assert test["timeout"] == timeout * 1000
 
 
-def test_err_string():
+def test_err_string() -> None:
     assert stability.err_string(
         {'OK': 1, 'FAIL': 1}, 1) == "**Duplicate subtest name**"
     assert stability.err_string(
@@ -152,7 +152,7 @@ def test_err_string():
         {'FAIL': 1, 'SKIP': 1, 'OK': 2}, 4) == "FAIL: 1/4, OK: 2/4, SKIP: 1/4"
 
 
-def test_check_stability_iterations():
+def test_check_stability_iterations() -> None:
     logger = StructuredLogger("test-stability")
     logger.add_handler(StreamHandler(sys.stdout, TbplFormatter()))
 

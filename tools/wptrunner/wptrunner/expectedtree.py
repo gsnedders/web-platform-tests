@@ -4,7 +4,7 @@ from math import log
 from collections import defaultdict
 
 class Node:
-    def __init__(self, prop, value):
+    def __init__(self, prop, value) -> None:
         self.prop = prop
         self.value = value
         self.parent = None
@@ -15,7 +15,7 @@ class Node:
         self.run_info = set()
         self.result_values = defaultdict(int)
 
-    def add(self, node):
+    def add(self, node) -> None:
         self.children.add(node)
         node.parent = self
 
@@ -24,7 +24,7 @@ class Node:
         for node in self.children:
             yield from node
 
-    def __len__(self):
+    def __len__(self) -> int:
         return 1 + sum(len(item) for item in self.children)
 
 

@@ -4,7 +4,7 @@ from typing import Any, Mapping
 webdriver = None
 
 
-def do_delayed_imports():
+def do_delayed_imports() -> None:
     global webdriver
     import webdriver
 
@@ -24,7 +24,7 @@ def get_browsing_context_id(context):
     raise ValueError("Unexpected context type: %s" % context)
 
 class BidiBluetoothAction:
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -49,7 +49,7 @@ class BidiBluetoothAction:
 class BidiBluetoothHandleRequestDevicePrompt(BidiBluetoothAction):
     name = "bidi.bluetooth.handle_request_device_prompt"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -166,7 +166,7 @@ class BidiBluetoothSimulateDescriptorResponseAction(BidiBluetoothAction):
 class BidiEmulationSetGeolocationOverrideAction:
     name = "bidi.emulation.set_geolocation_override"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -200,7 +200,7 @@ class BidiEmulationSetGeolocationOverrideAction:
 class BidiEmulationSetLocaleOverrideAction:
     name = "bidi.emulation.set_locale_override"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -223,7 +223,7 @@ class BidiEmulationSetLocaleOverrideAction:
 class BidiEmulationSetScreenOrientationOverrideAction:
     name = "bidi.emulation.set_screen_orientation_override"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -248,7 +248,7 @@ class BidiEmulationSetScreenOrientationOverrideAction:
 class BidiSessionSubscribeAction:
     name = "bidi.session.subscribe"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -266,7 +266,7 @@ class BidiSessionSubscribeAction:
 class BidiSessionUnsubscribeAction:
     name = "bidi.session.unsubscribe"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol
@@ -283,7 +283,7 @@ class BidiSessionUnsubscribeAction:
 class BidiPermissionsSetPermissionAction:
     name = "bidi.permissions.set_permission"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         do_delayed_imports()
         self.logger = logger
         self.protocol = protocol

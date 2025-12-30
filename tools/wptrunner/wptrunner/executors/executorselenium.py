@@ -34,7 +34,7 @@ RemoteConnection = None
 Command = None
 
 
-def do_delayed_imports():
+def do_delayed_imports() -> None:
     global webdriver
     global exceptions
     global RemoteConnection
@@ -46,27 +46,27 @@ def do_delayed_imports():
 
 
 class SeleniumBaseProtocolPart(BaseProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def execute_script(self, script, asynchronous=False):
         method = self.webdriver.execute_async_script if asynchronous else self.webdriver.execute_script
         return method(script)
 
-    def set_timeout(self, timeout):
+    def set_timeout(self, timeout) -> None:
         self.webdriver.set_script_timeout(timeout * 1000)
 
     @property
     def current_window(self):
         return self.webdriver.current_window_handle
 
-    def set_window(self, handle):
+    def set_window(self, handle) -> None:
         self.webdriver.switch_to_window(handle)
 
     def window_handles(self):
         return self.webdriver.window_handles
 
-    def load(self, url):
+    def load(self, url) -> None:
         self.webdriver.get(url)
 
     def wait(self):
@@ -85,7 +85,7 @@ addEventListener("__test_restart", e => {e.preventDefault(); callback(true)})"""
 
 
 class SeleniumTestharnessProtocolPart(TestharnessProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
         self.runner_handle = None
         with open(os.path.join(here, "runner.js")) as f:
@@ -93,7 +93,7 @@ class SeleniumTestharnessProtocolPart(TestharnessProtocolPart):
         with open(os.path.join(here, "window-loaded.js")) as f:
             self.window_loaded_script = f.read()
 
-    def load_runner(self, url_protocol):
+    def load_runner(self, url_protocol) -> None:
         if self.runner_handle:
             self.webdriver.switch_to_window(self.runner_handle)
         url = urljoin(self.parent.executor.server_url(url_protocol),
@@ -153,7 +153,7 @@ class SeleniumTestharnessProtocolPart(TestharnessProtocolPart):
 
         raise Exception("unable to find test window")
 
-    def test_window_loaded(self):
+    def test_window_loaded(self) -> None:
         """Wait until the page in the new window has been loaded.
 
         Hereby ignore Javascript execptions that are thrown when
@@ -168,7 +168,7 @@ class SeleniumTestharnessProtocolPart(TestharnessProtocolPart):
 
 
 class SeleniumSelectorProtocolPart(SelectorProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def elements_by_selector(self, selector):
@@ -179,7 +179,7 @@ class SeleniumSelectorProtocolPart(SelectorProtocolPart):
 
 
 class SeleniumClickProtocolPart(ClickProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def element(self, element):
@@ -187,7 +187,7 @@ class SeleniumClickProtocolPart(ClickProtocolPart):
 
 
 class SeleniumCookiesProtocolPart(CookiesProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def delete_all_cookies(self):
@@ -207,7 +207,7 @@ class SeleniumCookiesProtocolPart(CookiesProtocolPart):
 
 
 class SeleniumWindowProtocolPart(WindowProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def minimize(self):
@@ -215,7 +215,7 @@ class SeleniumWindowProtocolPart(WindowProtocolPart):
         self.logger.info("Minimizing")
         return self.webdriver.minimize()
 
-    def set_rect(self, rect):
+    def set_rect(self, rect) -> None:
         self.logger.info("Setting window rect")
         self.webdriver.window.rect = rect
 
@@ -224,7 +224,7 @@ class SeleniumWindowProtocolPart(WindowProtocolPart):
         return self.webdriver.window.rect
 
 class SeleniumSendKeysProtocolPart(SendKeysProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
     def send_keys(self, element, keys):
@@ -232,21 +232,21 @@ class SeleniumSendKeysProtocolPart(SendKeysProtocolPart):
 
 
 class SeleniumActionSequenceProtocolPart(ActionSequenceProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
-    def send_actions(self, actions):
+    def send_actions(self, actions) -> None:
         self.webdriver.execute(Command.W3C_ACTIONS, {"actions": actions})
 
-    def release(self):
+    def release(self) -> None:
         self.webdriver.execute(Command.W3C_CLEAR_ACTIONS, {})
 
 
 class SeleniumTestDriverProtocolPart(TestDriverProtocolPart):
-    def setup(self):
+    def setup(self) -> None:
         self.webdriver = self.parent.webdriver
 
-    def send_message(self, cmd_id, message_type, status, message=None):
+    def send_message(self, cmd_id, message_type, status, message=None) -> None:
         obj = {
             "cmd_id": cmd_id,
             "type": "testdriver-%s" % str(message_type),
@@ -268,7 +268,7 @@ class SeleniumProtocol(Protocol):
                   SeleniumWindowProtocolPart,
                   SeleniumActionSequenceProtocolPart]
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         do_delayed_imports()
 
         super().__init__(executor, browser)
@@ -276,7 +276,7 @@ class SeleniumProtocol(Protocol):
         self.url = browser.webdriver_url
         self.webdriver = None
 
-    def connect(self):
+    def connect(self) -> None:
         """Connect to browser via Selenium's WebDriver implementation."""
         self.logger.debug("Connecting to Selenium on URL: %s" % self.url)
 
@@ -284,7 +284,7 @@ class SeleniumProtocol(Protocol):
                                                                             resolve_ip=False),
                                           desired_capabilities=self.capabilities)
 
-    def teardown(self):
+    def teardown(self) -> None:
         self.logger.debug("Hanging up on Selenium session")
         try:
             self.webdriver.quit()
@@ -292,7 +292,7 @@ class SeleniumProtocol(Protocol):
             pass
         del self.webdriver
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         try:
             # Get a simple property over the connection
             self.webdriver.current_window_handle
@@ -301,7 +301,7 @@ class SeleniumProtocol(Protocol):
             return False
         return True
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         self.testharness.load_runner(self.executor.last_environment["protocol"])
 
 
@@ -316,7 +316,7 @@ class SeleniumRun(TimedRunner):
             self.logger.error(msg)
             return ("INTERNAL-ERROR", msg)
 
-    def run_func(self):
+    def run_func(self) -> None:
         try:
             self.result = True, self.func(self.protocol, self.url, self.timeout)
         except exceptions.TimeoutException:
@@ -338,7 +338,7 @@ class SeleniumTestharnessExecutor(TestharnessExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  close_after_done=True, capabilities=None, debug_info=None,
-                 **kwargs):
+                 **kwargs) -> None:
         """Selenium-based executor for testharness.js tests"""
         TestharnessExecutor.__init__(self, logger, browser, server_config,
                                      timeout_multiplier=timeout_multiplier,
@@ -352,7 +352,7 @@ class SeleniumTestharnessExecutor(TestharnessExecutor):
     def is_alive(self):
         return self.protocol.is_alive()
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         if new_environment["protocol"] != self.last_environment["protocol"]:
             self.protocol.testharness.load_runner(new_environment["protocol"])
 
@@ -398,7 +398,7 @@ class SeleniumTestharnessExecutor(TestharnessExecutor):
 class SeleniumRefTestExecutor(RefTestExecutor):
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, close_after_done=True,
-                 debug_info=None, capabilities=None, **kwargs):
+                 debug_info=None, capabilities=None, **kwargs) -> None:
         """Selenium WebDriver-based executor for reftests"""
         RefTestExecutor.__init__(self,
                                  logger,
@@ -416,7 +416,7 @@ class SeleniumRefTestExecutor(RefTestExecutor):
         with open(os.path.join(here, "test-wait.js")) as f:
             self.wait_script = f.read() % {"classname": "reftest-wait"}
 
-    def reset(self):
+    def reset(self) -> None:
         self.implementation.reset()
 
     def is_alive(self):

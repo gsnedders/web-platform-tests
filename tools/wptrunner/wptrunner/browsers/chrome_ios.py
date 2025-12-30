@@ -21,7 +21,7 @@ __wptrunner__ = {"product": "chrome_ios",
                  "env_options": "env_options",
                  "timeout_multiplier": "get_timeout_multiplier"}
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "webdriver_binary")
 
 

@@ -22,7 +22,7 @@ from collections import OrderedDict
 pytest = None
 
 
-def do_delayed_imports():
+def do_delayed_imports() -> None:
     global pytest
     import pytest
 
@@ -96,20 +96,20 @@ class HarnessResultRecorder:
         "skipped": "SKIP",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         # we are ok unless told otherwise
         self.outcome = ("OK", None)
 
-    def pytest_collectreport(self, report):
+    def pytest_collectreport(self, report) -> None:
         harness_result = self.outcomes[report.outcome]
         self.outcome = (harness_result, None)
 
 
 class SubtestResultRecorder:
-    def __init__(self):
+    def __init__(self) -> None:
         self.results = OrderedDict()
 
-    def pytest_runtest_logreport(self, report):
+    def pytest_runtest_logreport(self, report) -> None:
         if report.passed and report.when == "call":
             self.record_pass(report)
         elif report.failed:
@@ -132,18 +132,18 @@ class SubtestResultRecorder:
         elif report.skipped:
             self.record_skip(report)
 
-    def record_pass(self, report):
+    def record_pass(self, report) -> None:
         self.record(report.nodeid, "PASS")
 
-    def record_fail(self, report, message):
+    def record_fail(self, report, message) -> None:
         self.record(report.nodeid, "FAIL", message=message, stack=report.longrepr)
 
-    def record_error(self, report, message):
+    def record_error(self, report, message) -> None:
         # error in setup/teardown
         message = f"{report.when} error: {message}"
         self.record(report.nodeid, "ERROR", message, report.longrepr)
 
-    def record_skip(self, report):
+    def record_skip(self, report) -> None:
         self.record(
             report.nodeid,
             "ERROR",
@@ -151,7 +151,7 @@ class SubtestResultRecorder:
             "please use WPT metadata to ignore tests.",
         )
 
-    def record(self, test, status, message=None, stack=None):
+    def record(self, test, status, message=None, stack=None) -> None:
         if stack is not None:
             stack = str(stack)
         # Ensure we get a single result per subtest; pytest will sometimes

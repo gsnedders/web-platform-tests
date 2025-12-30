@@ -27,7 +27,7 @@ __wptrunner__ = {"product": "epiphany",
                  "timeout_multiplier": "get_timeout_multiplier"}
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     pass
 
 

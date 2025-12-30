@@ -38,7 +38,7 @@ is updated with the changes, and the result is serialised to a file.
 
 
 class ConditionError(Exception):
-    def __init__(self, cond=None):
+    def __init__(self, cond=None) -> None:
         self.cond = cond
 
 
@@ -66,7 +66,7 @@ def get_test_name(test_id):
 
 
 class UpdateProperties:
-    def __init__(self, manifest, **kwargs):
+    def __init__(self, manifest, **kwargs) -> None:
         self._manifest = manifest
         self._classes = kwargs
 
@@ -77,7 +77,7 @@ class UpdateProperties:
             return rv
         raise AttributeError
 
-    def __contains__(self, name):
+    def __contains__(self, name) -> bool:
         return name in self._classes
 
     def __iter__(self):
@@ -87,7 +87,7 @@ class UpdateProperties:
 
 class ExpectedManifest(ManifestItem):
     def __init__(self, node, test_path, url_base, run_info_properties,
-                 update_intermittent=False, remove_intermittent=False):
+                 update_intermittent=False, remove_intermittent=False) -> None:
         """Object representing all the tests in a particular manifest
 
         :param node: AST Node associated with this object. If this is None,
@@ -134,16 +134,16 @@ class ExpectedManifest(ManifestItem):
         return any(item.modified for item in self.children)
 
     @modified.setter
-    def modified(self, value):
+    def modified(self, value) -> None:
         self._modified = value
 
-    def append(self, child):
+    def append(self, child) -> None:
         ManifestItem.append(self, child)
         if child.id in self.child_map:
             print("Warning: Duplicate heading %s" % child.id)
         self.child_map[child.id] = child
 
-    def _remove_child(self, child):
+    def _remove_child(self, child) -> None:
         del self.child_map[child.id]
         ManifestItem._remove_child(self, child)
 
@@ -154,7 +154,7 @@ class ExpectedManifest(ManifestItem):
 
         return self.child_map.get(test_id)
 
-    def has_test(self, test_id):
+    def has_test(self, test_id) -> bool:
         """Boolean indicating whether the current test has a known child test
         with id test id
 
@@ -167,7 +167,7 @@ class ExpectedManifest(ManifestItem):
         return urljoin(self.url_base,
                        "/".join(self.test_path.split(os.path.sep)))
 
-    def set_lsan(self, run_info, result):
+    def set_lsan(self, run_info, result) -> None:
         """Set the result of the test in a particular run
 
         :param run_info: Dictionary of run_info parameters corresponding
@@ -175,7 +175,7 @@ class ExpectedManifest(ManifestItem):
         :param result: Lsan violations detected"""
         self.update_properties.lsan.set(run_info, result)
 
-    def set_leak_object(self, run_info, result):
+    def set_leak_object(self, run_info, result) -> None:
         """Set the result of the test in a particular run
 
         :param run_info: Dictionary of run_info parameters corresponding
@@ -183,7 +183,7 @@ class ExpectedManifest(ManifestItem):
         :param result: Leaked objects deletec"""
         self.update_properties.leak_object.set(run_info, result)
 
-    def set_leak_threshold(self, run_info, result):
+    def set_leak_threshold(self, run_info, result) -> None:
         """Set the result of the test in a particular run
 
         :param run_info: Dictionary of run_info parameters corresponding
@@ -191,14 +191,14 @@ class ExpectedManifest(ManifestItem):
         :param result: Total number of bytes leaked"""
         self.update_properties.leak_threshold.set(run_info, result)
 
-    def update(self, full_update, disable_intermittent):
+    def update(self, full_update, disable_intermittent) -> None:
         for prop_update in self.update_properties:
             prop_update.update(full_update,
                                disable_intermittent)
 
 
 class TestNode(ManifestItem):
-    def __init__(self, node):
+    def __init__(self, node) -> None:
         """Tree node associated with a particular test in a manifest
 
         :param node: AST node associated with the test"""
@@ -253,10 +253,10 @@ class TestNode(ManifestItem):
         return any(child.modified for child in self.children)
 
     @modified.setter
-    def modified(self, value):
+    def modified(self, value) -> None:
         self._modified = value
 
-    def disabled(self, run_info):
+    def disabled(self, run_info) -> bool:
         """Boolean indicating whether this test is disabled when run in an
         environment with the given run_info
 
@@ -264,7 +264,7 @@ class TestNode(ManifestItem):
 
         return self.get("disabled", run_info) is not None
 
-    def set_result(self, run_info, result):
+    def set_result(self, run_info, result) -> None:
         """Set the result of the test in a particular run
 
         :param run_info: Dictionary of run_info parameters corresponding
@@ -272,14 +272,14 @@ class TestNode(ManifestItem):
         :param result: Status of the test in this run"""
         self.update_properties.expected.set(run_info, result)
 
-    def set_asserts(self, run_info, count):
+    def set_asserts(self, run_info, count) -> None:
         """Set the assert count of a test
 
         """
         self.update_properties.min_asserts.set(run_info, count)
         self.update_properties.max_asserts.set(run_info, count)
 
-    def append(self, node):
+    def append(self, node) -> None:
         child = ManifestItem.append(self, node)
         self.subtests[child.name] = child
 
@@ -297,14 +297,14 @@ class TestNode(ManifestItem):
             self.append(subtest)
             return subtest
 
-    def update(self, full_update, disable_intermittent):
+    def update(self, full_update, disable_intermittent) -> None:
         for prop_update in self.update_properties:
             prop_update.update(full_update,
                                disable_intermittent)
 
 
 class SubtestNode(TestNode):
-    def __init__(self, node):
+    def __init__(self, node) -> None:
         assert isinstance(node, DataNode)
         TestNode.__init__(self, node)
 
@@ -315,7 +315,7 @@ class SubtestNode(TestNode):
         return self
 
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         if self._data:
             return False
         return True
@@ -344,7 +344,7 @@ class PropertyUpdate:
     # methods are annotated.
     property_builder: ClassVar[Callable[..., Any]]
 
-    def __init__(self, node):
+    def __init__(self, node) -> None:
         self.node = node
         self.default_value = self.cls_default_value
         self.has_result = False
@@ -363,14 +363,14 @@ class PropertyUpdate:
 
         return run_info_by_condition
 
-    def set(self, run_info, value):
+    def set(self, run_info, value) -> None:
         self.has_result = True
         self.node.has_result = True
         self.check_default(value)
         value = self.from_result_value(value)
         self.results[run_info][value] += 1
 
-    def check_default(self, result):
+    def check_default(self, result) -> None:
         return
 
     def from_result_value(self, value):
@@ -403,7 +403,7 @@ class PropertyUpdate:
 
     def update(self,
                full_update=False,
-               disable_intermittent=None):
+               disable_intermittent=None) -> None:
         """Update the underlying manifest AST for this test based on all the
         added results.
 
@@ -697,7 +697,7 @@ class ExpectedUpdate(PropertyUpdate):
     property_name = "expected"
     property_builder = build_conditional_tree
 
-    def check_default(self, result):
+    def check_default(self, result) -> None:
         if self.default_value is not None:
             assert self.default_value == result.default_expected
         else:

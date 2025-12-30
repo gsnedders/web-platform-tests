@@ -28,7 +28,7 @@ def url_or_path(path):
         return abs_path(path)
 
 
-def require_arg(kwargs, name, value_func=None):
+def require_arg(kwargs, name, value_func=None) -> None:
     if value_func is None:
         value_func = lambda x: x is not None
 
@@ -493,7 +493,7 @@ def set_from_config(kwargs):
 
 
 class TestRoot:
-    def __init__(self, tests_path: str, metadata_path: str, manifest_path: Optional[str] = None):
+    def __init__(self, tests_path: str, metadata_path: str, manifest_path: Optional[str] = None) -> None:
         self.tests_path = tests_path
         self.metadata_path = metadata_path
         if manifest_path is None:

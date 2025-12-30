@@ -31,7 +31,7 @@ else:
 
 
 class all_products:
-    def __init__(self, arg, marks={}):
+    def __init__(self, arg, marks={}) -> None:
         self.arg = arg
         self.marks = marks
 
@@ -46,7 +46,7 @@ class all_products:
 
 
 class active_products:
-    def __init__(self, arg, marks={}):
+    def __init__(self, arg, marks={}) -> None:
         self.arg = arg
         self.marks = marks
 

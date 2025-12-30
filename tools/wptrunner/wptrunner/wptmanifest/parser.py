@@ -22,7 +22,7 @@ from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOpe
 
 
 class ParseError(Exception):
-    def __init__(self, filename, line, detail):
+    def __init__(self, filename, line, detail) -> None:
         self.line = line
         self.filename = filename
         self.detail = detail
@@ -86,10 +86,10 @@ token_types = TokenTypes()
 
 
 class Tokenizer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         self.indent_levels = [0]
         self.state = self.line_start_state
         self.next_state = self.data_line_state
@@ -131,18 +131,18 @@ class Tokenizer:
             return eol
         return self.line[self.index]
 
-    def consume(self):
+    def consume(self) -> None:
         if self.index < len(self.line):
             self.index += 1
 
     def peek(self, length):
         return self.line[self.index:self.index + length]
 
-    def skip_whitespace(self):
+    def skip_whitespace(self) -> None:
         while self.char() == " ":
             self.consume()
 
-    def eol_state(self):
+    def eol_state(self) -> None:
         if self.next_line_state is None:
             self.next_line_state = self.line_start_state
 
@@ -222,7 +222,7 @@ class Tokenizer:
         self.consume()
         self.state = self.after_key_state
 
-    def after_key_state(self):
+    def after_key_state(self) -> None:
         self.skip_whitespace()
         c = self.char()
         if c in {"#", eol}:
@@ -233,7 +233,7 @@ class Tokenizer:
         else:
             self.state = self.value_state
 
-    def after_expr_state(self):
+    def after_expr_state(self) -> None:
         self.skip_whitespace()
         c = self.char()
         if c in {"#", eol}:
@@ -402,7 +402,7 @@ class Tokenizer:
 
         return decode(rv)
 
-    def expr_or_value_state(self):
+    def expr_or_value_state(self) -> None:
         if self.peek(3) == "if ":
             self.state = self.expr_state
         else:
@@ -548,10 +548,10 @@ class Tokenizer:
 
 
 class Parser:
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         self.token = None
         self.unary_operators = "!"
         self.binary_operators = frozenset(["&&", "||", "=="])
@@ -576,7 +576,7 @@ class Parser:
                                  str(e))
             raise
 
-    def consume(self):
+    def consume(self) -> None:
         self.token = next(self.token_generator)
 
     def expect(self, type, value=None):
@@ -590,17 +590,17 @@ class Parser:
 
         self.consume()
 
-    def maybe_consume_inline_comment(self):
+    def maybe_consume_inline_comment(self) -> None:
         if self.token[0] == token_types.inline_comment:
             self.comments.append(self.token)
             self.consume()
 
-    def consume_comments(self):
+    def consume_comments(self) -> None:
         while self.token[0] == token_types.comment:
             self.comments.append(self.token)
             self.consume()
 
-    def flush_comments(self, target_node=None):
+    def flush_comments(self, target_node=None) -> None:
         """Transfer comments from the parser's buffer to a parse tree node.
 
         Use the tree's current node if no target node is explicitly specified.
@@ -615,7 +615,7 @@ class Parser:
         (target_node or self.tree.node).comments.extend(self.comments)
         self.comments.clear()
 
-    def manifest(self):
+    def manifest(self) -> None:
         self.data_block()
         self.expect(token_types.eof)
 
@@ -652,7 +652,7 @@ class Parser:
                     self.eof_or_end_group()
                 self.tree.pop()
 
-    def eof_or_end_group(self):
+    def eof_or_end_group(self) -> None:
         if self.token[0] != token_types.eof:
             self.expect(token_types.group_end)
 
@@ -697,7 +697,7 @@ class Parser:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number,
                              f"Token '{self.token[0]}' is not a known type")
 
-    def list_value(self):
+    def list_value(self) -> None:
         self.tree.append(ListNode())
         self.maybe_consume_inline_comment()
         while self.token[0] in (token_types.atom, token_types.string):
@@ -709,7 +709,7 @@ class Parser:
         self.maybe_consume_inline_comment()
         self.tree.pop()
 
-    def expression_values(self):
+    def expression_values(self) -> None:
         self.consume_comments()
         while self.token == (token_types.ident, "if"):
             self.consume()
@@ -721,7 +721,7 @@ class Parser:
             self.tree.pop()
             self.consume_comments()
 
-    def value(self):
+    def value(self) -> None:
         self.tree.append(ValueNode(self.token[1]))
         self.consume()
         self.maybe_consume_inline_comment()
@@ -735,7 +735,7 @@ class Parser:
         self.maybe_consume_inline_comment()
         self.tree.pop()
 
-    def expr_start(self):
+    def expr_start(self) -> None:
         self.expr_builder = ExpressionBuilder(self.tokenizer)
         self.expr_builders.append(self.expr_builder)
         self.expr()
@@ -748,7 +748,7 @@ class Parser:
             self.tree.append(expression)
             self.tree.pop()
 
-    def expr(self):
+    def expr(self) -> None:
         self.expr_operand()
         while (self.token[0] == token_types.ident and self.token[1] in binary_operators):
             self.expr_bin_op()
@@ -785,7 +785,7 @@ class Parser:
         else:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Expected binary operator")
 
-    def expr_value(self):
+    def expr_value(self) -> None:
         node_type = {token_types.string: StringNode,
                      token_types.ident: VariableNode,
                      token_types.atom: AtomExprNode}[self.token[0]]
@@ -802,13 +802,13 @@ class Parser:
             self.expr_start()
             self.expect(token_types.paren, "]")
 
-    def expr_number(self):
+    def expr_number(self) -> None:
         self.expr_builder.push_operand(NumberNode(self.token[1]))
         self.consume()
 
 
 class Treebuilder:
-    def __init__(self, root):
+    def __init__(self, root) -> None:
         self.root = root
         self.node = root
 
@@ -827,7 +827,7 @@ class Treebuilder:
 
 
 class ExpressionBuilder:
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer) -> None:
         self.operands = []
         self.operators = [None]
         self.tokenizer = tokenizer
@@ -839,7 +839,7 @@ class ExpressionBuilder:
         assert self.is_empty()
         return rv
 
-    def left_paren(self):
+    def left_paren(self) -> None:
         self.operators.append(None)
 
     def right_paren(self):
@@ -851,14 +851,14 @@ class ExpressionBuilder:
 
         assert self.operators.pop() is None
 
-    def push_operator(self, operator):
+    def push_operator(self, operator) -> None:
         assert operator is not None
         while self.precedence(self.operators[-1]) > self.precedence(operator):
             self.pop_operator()
 
         self.operators.append(operator)
 
-    def pop_operator(self):
+    def pop_operator(self) -> None:
         operator = self.operators.pop()
         if isinstance(operator, BinaryOperatorNode):
             operand_1 = self.operands.pop()
@@ -868,7 +868,7 @@ class ExpressionBuilder:
             operand_0 = self.operands.pop()
             self.operands.append(UnaryExpressionNode(operator, operand_0))
 
-    def push_operand(self, node):
+    def push_operand(self, node) -> None:
         self.operands.append(node)
 
     def pop_operand(self):

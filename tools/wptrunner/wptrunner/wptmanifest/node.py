@@ -13,13 +13,13 @@ class NodeVisitor:
 
 
 class Node:
-    def __init__(self, data=None, comments=None):
+    def __init__(self, data=None, comments=None) -> None:
         self.data = data
         self.parent: Optional[Node] = None
         self.children = []
         self.comments = comments or []
 
-    def append(self, other):
+    def append(self, other) -> None:
         other.parent = self
         self.children.append(other)
 
@@ -29,16 +29,16 @@ class Node:
 
         self.parent.children.remove(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__} {self.data}>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         rv = [repr(self)]
         for item in self.children:
             rv.extend("  %s" % line for line in str(item).split("\n"))
         return "\n".join(rv)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if (self.__class__ != other.__class__ or
             self.data != other.data or
             len(self.children) != len(other.children)):
@@ -91,7 +91,7 @@ class KeyValueNode(Node):
 
 
 class ListNode(Node):
-    def append(self, other):
+    def append(self, other) -> None:
         other.parent = self
         self.children.append(other)
 
@@ -120,12 +120,12 @@ class ConditionalNode(Node):
 
 
 class UnaryExpressionNode(Node):
-    def __init__(self, operator, operand):
+    def __init__(self, operator, operand) -> None:
         Node.__init__(self)
         self.append(operator)
         self.append(operand)
 
-    def append(self, other):
+    def append(self, other) -> None:
         Node.append(self, other)
         assert len(self.children) <= 2
 
@@ -136,13 +136,13 @@ class UnaryExpressionNode(Node):
 
 
 class BinaryExpressionNode(Node):
-    def __init__(self, operator, operand_0, operand_1):
+    def __init__(self, operator, operand_0, operand_1) -> None:
         Node.__init__(self)
         self.append(operator)
         self.append(operand_0)
         self.append(operand_1)
 
-    def append(self, other):
+    def append(self, other) -> None:
         Node.append(self, other)
         assert len(self.children) <= 3
 

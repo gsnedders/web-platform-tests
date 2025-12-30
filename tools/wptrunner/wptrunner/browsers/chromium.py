@@ -29,7 +29,7 @@ __wptrunner__ = {"product": "chromium",
 # Chromium will rarely need a product definition that is different from Chrome.
 # If any wptrunner options need to differ from Chrome, they can be added as
 # an additional step after the execution of Chrome's functions.
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     chrome.check_args(**kwargs)
 
 

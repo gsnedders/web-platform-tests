@@ -31,7 +31,7 @@ __wptrunner__ = {"product": "safari",
                  "timeout_multiplier": "get_timeout_multiplier"}
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "webdriver_binary")
 
 
@@ -146,7 +146,7 @@ class SafariBrowser(WebDriverBrowser):
     """Safari is backed by safaridriver, which is supplied through
     ``wptrunner.webdriver.SafariDriverServer``.
     """
-    def __init__(self, logger, kill_safari=False, **kwargs):
+    def __init__(self, logger, kill_safari=False, **kwargs) -> None:
         """Creates a new representation of Safari.  The `webdriver_binary`
         argument gives the WebDriver binary to use for testing. (The browser
         binary location cannot be specified, as Safari and SafariDriver are

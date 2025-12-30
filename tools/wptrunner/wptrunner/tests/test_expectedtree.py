@@ -7,7 +7,7 @@ from collections import defaultdict
 def dump_tree(tree):
     rv = []
 
-    def dump_node(node, indent=0):
+    def dump_node(node, indent=0) -> None:
         prefix = " " * indent
         if not node.prop:
             data = "root"
@@ -30,7 +30,7 @@ def results_object(results):
     return results_obj
 
 
-def test_build_tree_0():
+def test_build_tree_0() -> None:
     # Pass if debug
     results = [({"os": "linux", "version": "18.04", "debug": True}, "FAIL"),
                ({"os": "linux", "version": "18.04", "debug": False}, "PASS"),
@@ -49,7 +49,7 @@ def test_build_tree_0():
     assert dump_tree(tree) == expected
 
 
-def test_build_tree_1():
+def test_build_tree_1() -> None:
     # Pass if linux or windows 10
     results = [({"os": "linux", "version": "18.04", "debug": True}, "PASS"),
                ({"os": "linux", "version": "18.04", "debug": False}, "PASS"),
@@ -71,7 +71,7 @@ def test_build_tree_1():
     assert dump_tree(tree) == expected
 
 
-def test_build_tree_2():
+def test_build_tree_2() -> None:
     # Fails in a specific configuration
     results = [({"os": "linux", "version": "18.04", "debug": True}, "PASS"),
                ({"os": "linux", "version": "18.04", "debug": False}, "FAIL"),
@@ -96,7 +96,7 @@ def test_build_tree_2():
     assert dump_tree(tree) == expected
 
 
-def test_build_tree_3():
+def test_build_tree_3() -> None:
 
     results = [({"os": "linux", "version": "18.04", "debug": True, "unused": False}, "PASS"),
                ({"os": "linux", "version": "18.04", "debug": True, "unused": True}, "FAIL")]
@@ -108,7 +108,7 @@ def test_build_tree_3():
     assert dump_tree(tree) == expected
 
 
-def test_build_tree_4():
+def test_build_tree_4() -> None:
     # Check counts for multiple statuses
     results = [({"os": "linux", "version": "18.04", "debug": False}, "FAIL"),
                ({"os": "linux", "version": "18.04", "debug": False}, "PASS"),

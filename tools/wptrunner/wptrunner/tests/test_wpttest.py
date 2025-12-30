@@ -117,7 +117,7 @@ def make_test_object(test_name,
                                  test_metadata.get_test(manifestupdate.get_test_name(test.id)))
 
 
-def test_run_info():
+def test_run_info() -> None:
     run_info = wpttest.get_run_info("/", "fake-product", debug=False)
     assert isinstance(run_info["bits"], int)
     assert isinstance(run_info["os"], str)
@@ -127,7 +127,7 @@ def test_run_info():
     assert isinstance(run_info["python_version"], int)
 
 
-def test_metadata_inherit():
+def test_metadata_inherit() -> None:
     items = [("test", "a", 10), ("test", "a/b", 10), ("test", "c", 10)]
     inherit_metadata = [
         manifestexpected.static.compile(
@@ -144,7 +144,7 @@ def test_metadata_inherit():
     assert test_obj.tags == {"a", "dir:a"}
 
 
-def test_conditional():
+def test_conditional() -> None:
     items = [("test", "a", 10), ("test", "a/b", 10), ("test", "c", 10)]
 
     test_obj = make_test_object(test_1, "a/1.html", 1, items, None, True, {"os": "win"})
@@ -153,7 +153,7 @@ def test_conditional():
     assert test_obj.expected() == "FAIL"
 
 
-def test_metadata_lsan_stack_depth():
+def test_metadata_lsan_stack_depth() -> None:
     items = [("test", "a", 10), ("test", "a/b", 10)]
 
     test_obj = make_test_object(test_2, "a/2.html", 2, items, None, True)
@@ -176,7 +176,7 @@ def test_metadata_lsan_stack_depth():
     assert test_obj.lsan_max_stack_depth == 42
 
 
-def test_subtests():
+def test_subtests() -> None:
     test_obj = make_test_object(test_3, "a/3.html", 3, ("test", "a", 4), None, False)
     assert test_obj.expected("subtest1") == "PASS"
     assert test_obj.known_intermittent("subtest1") == ["FAIL"]
@@ -186,25 +186,25 @@ def test_subtests():
     assert test_obj.known_intermittent("subtest3") == []
 
 
-def test_expected_fail():
+def test_expected_fail() -> None:
     test_obj = make_test_object(test_4, "a/4.html", 4, ("test", "a", 5), None, False)
     assert test_obj.expected() == "FAIL"
     assert test_obj.known_intermittent() == []
 
 
-def test_no_expected():
+def test_no_expected() -> None:
     test_obj = make_test_object(test_5, "a/5.html", 5, ("test", "a", 6), None, False)
     assert test_obj.expected() == "OK"
     assert test_obj.known_intermittent() == []
 
 
-def test_known_intermittent():
+def test_known_intermittent() -> None:
     test_obj = make_test_object(test_6, "a/6.html", 6, ("test", "a", 7), None, False)
     assert test_obj.expected() == "OK"
     assert test_obj.known_intermittent() == ["FAIL"]
 
 
-def test_metadata_fuzzy():
+def test_metadata_fuzzy() -> None:
     item = RefTest(tests_root=".",
                    path="a/fuzzy.html",
                    url_base="/",

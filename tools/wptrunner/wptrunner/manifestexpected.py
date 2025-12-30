@@ -246,7 +246,7 @@ def fuzzy_prop(node):
 
 
 class ExpectedManifest(ManifestItem):
-    def __init__(self, node, test_path):
+    def __init__(self, node, test_path) -> None:
         """Object representing all the tests in a particular manifest
 
         :param name: Name of the AST Node associated with this object.
@@ -263,12 +263,12 @@ class ExpectedManifest(ManifestItem):
         self.child_map = {}
         self.test_path = test_path
 
-    def append(self, child):
+    def append(self, child) -> None:
         """Add a test to the manifest"""
         ManifestItem.append(self, child)
         self.child_map[child.id] = child
 
-    def _remove_child(self, child):
+    def _remove_child(self, child) -> None:
         del self.child_map[child.id]
         ManifestItem.remove_child(self, child)
         assert len(self.child_map) == len(self.children)
@@ -403,7 +403,7 @@ class DirectoryManifest(ManifestItem):
 
 
 class TestNode(ManifestItem):
-    def __init__(self, node, **kwargs):
+    def __init__(self, node, **kwargs) -> None:
         """Tree node associated with a particular test in a manifest
 
         :param name: name of the test"""
@@ -494,7 +494,7 @@ class TestNode(ManifestItem):
     def implementation_status(self):
         return str_prop("implementation-status", self)
 
-    def append(self, node):
+    def append(self, node) -> None:
         """Add a subtest to the current test
 
         :param node: AST Node associated with the subtest"""
@@ -512,7 +512,7 @@ class TestNode(ManifestItem):
 
 class SubtestNode(TestNode):
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         if self._data:
             return False
         return True

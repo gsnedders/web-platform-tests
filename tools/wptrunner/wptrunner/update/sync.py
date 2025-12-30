@@ -13,7 +13,7 @@ from .tree import Commit
 here = os.path.abspath(os.path.dirname(__file__))
 
 
-def copy_wpt_tree(tree, dest, excludes=None, includes=None):
+def copy_wpt_tree(tree, dest, excludes=None, includes=None) -> None:
     """Copy the working copy of a Tree to a destination directory.
 
     :param tree: The Tree to copy.
@@ -61,7 +61,7 @@ class UpdateCheckout(Step):
 
     provides = ["local_branch"]
 
-    def create(self, state):
+    def create(self, state) -> None:
         sync_tree = state.sync_tree
         state.local_branch = uuid.uuid4().hex
         sync_tree.update(state.sync["remote_url"],
@@ -72,7 +72,7 @@ class UpdateCheckout(Step):
             from .update import setup_paths
             setup_paths(sync_path)
 
-    def restore(self, state):
+    def restore(self, state) -> None:
         assert os.path.abspath(state.sync_tree.root) in sys.path
         Step.restore(self, state)
 
@@ -82,7 +82,7 @@ class GetSyncTargetCommit(Step):
 
     provides = ["sync_commit"]
 
-    def create(self, state):
+    def create(self, state) -> None:
         if state.target_rev is None:
             #Use upstream branch HEAD as the base commit
             state.sync_commit = state.sync_tree.get_remote_sha1(state.sync["remote_url"],
@@ -99,7 +99,7 @@ class UpdateManifest(Step):
 
     provides = ["manifest_path", "test_manifest"]
 
-    def create(self, state):
+    def create(self, state) -> None:
         from manifest import manifest  # type: ignore
         state.manifest_path = os.path.join(state.metadata_path, "MANIFEST.json")
         state.test_manifest = manifest.load_and_update(state.sync["path"],
@@ -111,7 +111,7 @@ class UpdateManifest(Step):
 class CopyWorkTree(Step):
     """Copy the sync tree over to the destination in the local tree"""
 
-    def create(self, state):
+    def create(self, state) -> None:
         copy_wpt_tree(state.sync_tree,
                       state.tests_path,
                       excludes=state.path_excludes,
@@ -121,7 +121,7 @@ class CopyWorkTree(Step):
 class CreateSyncPatch(Step):
     """Add the updated test files to a commit/patch in the local tree."""
 
-    def create(self, state):
+    def create(self, state) -> None:
         if not state.patch:
             return
 

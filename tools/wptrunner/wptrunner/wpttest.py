@@ -23,7 +23,7 @@ class Result(ABC):
                  expected=None,
                  extra=None,
                  stack=None,
-                 known_intermittent=None):
+                 known_intermittent=None) -> None:
         if status not in self.statuses:
             raise ValueError("Unrecognised status %s" % status)
         self.status = status
@@ -33,12 +33,12 @@ class Result(ABC):
         self.extra = extra if extra is not None else {}
         self.stack = stack
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__module__}.{self.__class__.__name__} {self.status}>"
 
 
 class SubtestResult(ABC):
-    def __init__(self, name, status, message, stack=None, expected=None, known_intermittent=None):
+    def __init__(self, name, status, message, stack=None, expected=None, known_intermittent=None) -> None:
         self.name = name
         if status not in self.statuses:
             raise ValueError("Unrecognised status %s" % status)
@@ -48,7 +48,7 @@ class SubtestResult(ABC):
         self.expected = expected
         self.known_intermittent = known_intermittent if known_intermittent is not None else []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__module__}.{self.__class__.__name__} {self.name} {self.status}>"
 
 
@@ -95,7 +95,7 @@ class RunInfo(Dict[str, Any]):
                  verify=None,
                  extras=None,
                  device_serials=None,
-                 adb_binary=None):
+                 adb_binary=None) -> None:
         import mozinfo
         self._update_mozinfo(metadata_root)
         self.update(mozinfo.info)
@@ -147,7 +147,7 @@ class RunInfo(Dict[str, Any]):
         value = self._adb_run(device_serial, args, **kwargs)
         return value.strip()
 
-    def _update_with_emulator_info(self, device_serial):
+    def _update_with_emulator_info(self, device_serial) -> None:
         """Override system info taken from the host if using an Android
         emulator."""
         try:
@@ -188,7 +188,7 @@ class RunInfo(Dict[str, Any]):
         except (OSError, subprocess.CalledProcessError):
             pass
 
-    def _update_mozinfo(self, metadata_root):
+    def _update_mozinfo(self, metadata_root) -> None:
         """Add extra build information from a mozinfo.json file in a parent
         directory"""
         import mozinfo
@@ -204,7 +204,7 @@ class RunInfo(Dict[str, Any]):
         mozinfo.find_and_update_from_json(*dirs)
 
 
-def server_protocol(manifest_item):
+def server_protocol(manifest_item) -> str:
     if hasattr(manifest_item, "h2") and manifest_item.h2:
         return "h2"
     if hasattr(manifest_item, "https") and manifest_item.https:
@@ -223,7 +223,7 @@ class Test(ABC):
 
     def __init__(self, url_base, tests_root, url, inherit_metadata, test_metadata,
           timeout=None, path=None, protocol="http", subdomain=False, pac=None,
-          testdriver_features=None):
+          testdriver_features=None) -> None:
         self.url_base = url_base
         self.tests_root = tests_root
         self.url = url
@@ -246,7 +246,7 @@ class Test(ABC):
         return self.id == other.id
 
     # Python 2 does not have this delegation, while Python 3 does.
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
 
     def make_result(self,
@@ -321,7 +321,7 @@ class Test(ABC):
         return None
 
     @property
-    def restart_after(self):
+    def restart_after(self) -> bool:
         for meta in self.itermeta(None):
             restart_after = meta.restart_after
             if restart_after is not None:
@@ -479,7 +479,7 @@ class Test(ABC):
         except KeyError:
             return []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__module__}.{self.__class__.__name__} {self.id}>"
 
 
@@ -491,7 +491,7 @@ class TestharnessTest(Test):
     def __init__(self, url_base, tests_root, url, inherit_metadata, test_metadata,
                  timeout=None, path=None, protocol="http", testdriver=False,
                  jsshell=False, scripts=None, subdomain=False, pac=None,
-                 testdriver_features=None):
+                 testdriver_features=None) -> None:
         Test.__init__(self, url_base, tests_root, url, inherit_metadata, test_metadata, timeout,
                       path, protocol, subdomain, pac, testdriver_features)
 
@@ -546,7 +546,7 @@ class ReftestTest(Test):
 
     def __init__(self, url_base, tests_root, url, inherit_metadata, test_metadata, references,
                  timeout=None, path=None, viewport_size=None, dpi=None, fuzzy=None,
-                 protocol="http", subdomain=False, testdriver=False):
+                 protocol="http", subdomain=False, testdriver=False) -> None:
         Test.__init__(self, url_base, tests_root, url, inherit_metadata, test_metadata, timeout,
                       path, protocol, subdomain)
 
@@ -705,7 +705,7 @@ class PrintReftestTest(ReftestTest):
 
     def __init__(self, url_base, tests_root, url, inherit_metadata, test_metadata, references,
                  timeout=None, path=None, viewport_size=None, dpi=None, fuzzy=None,
-                 page_ranges=None, protocol="http", subdomain=False, testdriver=False):
+                 page_ranges=None, protocol="http", subdomain=False, testdriver=False) -> None:
         super().__init__(url_base, tests_root, url, inherit_metadata, test_metadata,
                          references, timeout, path, viewport_size, dpi,
                          fuzzy, protocol, subdomain=subdomain, testdriver=testdriver)
@@ -740,7 +740,7 @@ class CrashTest(Test):
     test_type = "crashtest"
 
     def __init__(self, url_base, tests_root, url, inherit_metadata, test_metadata,
-                 timeout=None, path=None, protocol="http", subdomain=False, testdriver=False):
+                 timeout=None, path=None, protocol="http", subdomain=False, testdriver=False) -> None:
         super().__init__(url_base, tests_root, url, inherit_metadata, test_metadata,
                          timeout, path, protocol, subdomain=subdomain)
         self.testdriver = testdriver

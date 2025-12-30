@@ -16,7 +16,7 @@ def product_module(config, product):
 
 
 class Product:
-    def __init__(self, config, product):
+    def __init__(self, config, product) -> None:
         module = product_module(config, product)
         data = module.__wptrunner__
         self.name = product

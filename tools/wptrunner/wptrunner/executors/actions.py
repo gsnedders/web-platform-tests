@@ -3,11 +3,11 @@
 class ClickAction:
     name = "click"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         selector = payload["selector"]
         element = self.protocol.select.element_by_selector(selector)
         self.logger.debug("Clicking element: %s" % selector)
@@ -17,11 +17,11 @@ class ClickAction:
 class DeleteAllCookiesAction:
     name = "delete_all_cookies"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         self.logger.debug("Deleting all cookies")
         self.protocol.cookies.delete_all_cookies()
 
@@ -29,7 +29,7 @@ class DeleteAllCookiesAction:
 class GetAllCookiesAction:
     name = "get_all_cookies"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -41,7 +41,7 @@ class GetAllCookiesAction:
 class GetComputedLabelAction:
     name = "get_computed_label"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -55,7 +55,7 @@ class GetComputedLabelAction:
 class GetComputedRoleAction:
     name = "get_computed_role"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -69,7 +69,7 @@ class GetComputedRoleAction:
 class GetNamedCookieAction:
     name = "get_named_cookie"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -82,11 +82,11 @@ class GetNamedCookieAction:
 class SendKeysAction:
     name = "send_keys"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         selector = payload["selector"]
         keys = payload["keys"]
         element = self.protocol.select.element_by_selector(selector)
@@ -97,7 +97,7 @@ class SendKeysAction:
 class MinimizeWindowAction:
     name = "minimize_window"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -108,18 +108,18 @@ class MinimizeWindowAction:
 class SetWindowRectAction:
     name = "set_window_rect"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         rect = payload["rect"]
         self.protocol.window.set_rect(rect)
 
 class GetWindowRectAction:
     name = "get_window_rect"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -129,12 +129,12 @@ class GetWindowRectAction:
 class ActionSequenceAction:
     name = "action_sequence"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
         self.requires_state_reset = False
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         # TODO: some sort of shallow error checking
         if self.requires_state_reset:
             self.reset()
@@ -151,7 +151,7 @@ class ActionSequenceAction:
     def get_element(self, element_selector):
         return self.protocol.select.element_by_selector(element_selector)
 
-    def reset(self):
+    def reset(self) -> None:
         self.protocol.action_sequence.release()
         self.requires_state_reset = False
 
@@ -159,11 +159,11 @@ class ActionSequenceAction:
 class GenerateTestReportAction:
     name = "generate_test_report"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         message = payload["message"]
         self.logger.debug("Generating test report: %s" % message)
         self.protocol.generate_test_report.generate_test_report(message)
@@ -171,11 +171,11 @@ class GenerateTestReportAction:
 class SetPermissionAction:
     name = "set_permission"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
-    def __call__(self, payload):
+    def __call__(self, payload) -> None:
         permission_params = payload["permission_params"]
         descriptor = permission_params["descriptor"]
         name = descriptor["name"]
@@ -187,7 +187,7 @@ class SetPermissionAction:
 class SetGlobalPrivacyControlAction:
     name = "set_global_privacy_control"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -198,7 +198,7 @@ class SetGlobalPrivacyControlAction:
 class GetGlobalPrivacyControlAction:
     name = "get_global_privacy_control"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -210,7 +210,7 @@ class GetGlobalPrivacyControlAction:
 class AddVirtualAuthenticatorAction:
     name = "add_virtual_authenticator"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -224,7 +224,7 @@ class AddVirtualAuthenticatorAction:
 class RemoveVirtualAuthenticatorAction:
     name = "remove_virtual_authenticator"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -237,7 +237,7 @@ class RemoveVirtualAuthenticatorAction:
 class AddCredentialAction:
     name = "add_credential"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -250,7 +250,7 @@ class AddCredentialAction:
 class GetCredentialsAction:
     name = "get_credentials"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -262,7 +262,7 @@ class GetCredentialsAction:
 class RemoveCredentialAction:
     name = "remove_credential"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -275,7 +275,7 @@ class RemoveCredentialAction:
 class RemoveAllCredentialsAction:
     name = "remove_all_credentials"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -287,7 +287,7 @@ class RemoveAllCredentialsAction:
 class SetUserVerifiedAction:
     name = "set_user_verified"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -301,7 +301,7 @@ class SetUserVerifiedAction:
 class SetSPCTransactionModeAction:
     name = "set_spc_transaction_mode"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -313,7 +313,7 @@ class SetSPCTransactionModeAction:
 class SetRPHRegistrationModeAction:
     name = "set_rph_registration_mode"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -325,7 +325,7 @@ class SetRPHRegistrationModeAction:
 class CancelFedCMDialogAction:
     name = "cancel_fedcm_dialog"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -336,7 +336,7 @@ class CancelFedCMDialogAction:
 class ClickFedCMDialogButtonAction:
     name = "click_fedcm_dialog_button"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -348,7 +348,7 @@ class ClickFedCMDialogButtonAction:
 class SelectFedCMAccountAction:
     name = "select_fedcm_account"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -360,7 +360,7 @@ class SelectFedCMAccountAction:
 class GetFedCMAccountListAction:
     name = "get_fedcm_account_list"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -371,7 +371,7 @@ class GetFedCMAccountListAction:
 class GetFedCMDialogTitleAction:
     name = "get_fedcm_dialog_title"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -382,7 +382,7 @@ class GetFedCMDialogTitleAction:
 class GetFedCMDialogTypeAction:
     name = "get_fedcm_dialog_type"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -393,7 +393,7 @@ class GetFedCMDialogTypeAction:
 class SetFedCMDelayEnabledAction:
     name = "set_fedcm_delay_enabled"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -405,7 +405,7 @@ class SetFedCMDelayEnabledAction:
 class ResetFedCMCooldownAction:
     name = "reset_fedcm_cooldown"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -417,7 +417,7 @@ class ResetFedCMCooldownAction:
 class CreateVirtualSensorAction:
     name = "create_virtual_sensor"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -431,7 +431,7 @@ class CreateVirtualSensorAction:
 class UpdateVirtualSensorAction:
     name = "update_virtual_sensor"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -445,7 +445,7 @@ class UpdateVirtualSensorAction:
 class RemoveVirtualSensorAction:
     name = "remove_virtual_sensor"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -458,7 +458,7 @@ class RemoveVirtualSensorAction:
 class GetVirtualSensorInformationAction:
     name = "get_virtual_sensor_information"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -470,7 +470,7 @@ class GetVirtualSensorInformationAction:
 class SetDevicePostureAction:
     name = "set_device_posture"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -481,7 +481,7 @@ class SetDevicePostureAction:
 class ClearDevicePostureAction:
     name = "clear_device_posture"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -491,7 +491,7 @@ class ClearDevicePostureAction:
 class RunBounceTrackingMitigationsAction:
     name = "run_bounce_tracking_mitigations"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -502,7 +502,7 @@ class RunBounceTrackingMitigationsAction:
 class CreateVirtualPressureSourceAction:
     name = "create_virtual_pressure_source"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -515,7 +515,7 @@ class CreateVirtualPressureSourceAction:
 class UpdateVirtualPressureSourceAction:
     name = "update_virtual_pressure_source"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -528,7 +528,7 @@ class UpdateVirtualPressureSourceAction:
 class RemoveVirtualPressureSourceAction:
     name = "remove_virtual_pressure_source"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -539,7 +539,7 @@ class RemoveVirtualPressureSourceAction:
 class SetProtectedAudienceKAnonymityAction:
     name = "set_protected_audience_k_anonymity"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -550,7 +550,7 @@ class SetProtectedAudienceKAnonymityAction:
 class SetDisplayFeaturesAction:
     name = "set_display_features"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -561,7 +561,7 @@ class SetDisplayFeaturesAction:
 class ClearDisplayFeaturesAction:
     name = "clear_display_features"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -571,7 +571,7 @@ class ClearDisplayFeaturesAction:
 class WebExtensionInstallAction:
     name = "install_web_extension"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 
@@ -585,7 +585,7 @@ class WebExtensionInstallAction:
 class WebExtensionUninstallAction:
     name = "uninstall_web_extension"
 
-    def __init__(self, logger, protocol):
+    def __init__(self, logger, protocol) -> None:
         self.logger = logger
         self.protocol = protocol
 

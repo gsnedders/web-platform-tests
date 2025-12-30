@@ -13,5 +13,5 @@ from ..executors import base
     ([[None, 2]], 5, {1, 2}),
     ([[None, 2], [2, None]], 5, {1, 2, 3, 4, 5}),
     ([[1], [6, 7], [8]], 5, {1})])
-def test_get_pages_valid(ranges_value, total_pages, expected):
+def test_get_pages_valid(ranges_value, total_pages, expected) -> None:
     assert base.get_pages(ranges_value, total_pages) == expected

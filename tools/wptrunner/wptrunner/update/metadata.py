@@ -10,7 +10,7 @@ from .base import Step, StepRunner
 class UpdateExpected(Step):
     """Do the metadata update on the local checkout"""
 
-    def create(self, state):
+    def create(self, state) -> None:
         metadata.update_expected(state.paths,
                                  state.run_log,
                                  update_properties=state.product.update_properties,
@@ -23,7 +23,7 @@ class UpdateExpected(Step):
 class CreateMetadataPatch(Step):
     """Create a patch/commit for the metadata checkout"""
 
-    def create(self, state):
+    def create(self, state) -> None:
         if not state.patch:
             return
 

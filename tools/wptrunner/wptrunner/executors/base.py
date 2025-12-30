@@ -68,7 +68,7 @@ def strip_server(url):
     return urlunsplit(url_parts)
 
 
-def server_url(server_config, protocol, subdomain=False):
+def server_url(server_config, protocol, subdomain=False) -> str:
     scheme = "https" if protocol == "h2" else protocol
     host = server_config["browser_host"]
     if subdomain:
@@ -109,7 +109,7 @@ def hash_screenshots(screenshots):
             for screenshot in screenshots]
 
 
-def _ensure_hash_in_reftest_screenshots(extra):
+def _ensure_hash_in_reftest_screenshots(extra) -> None:
     """Make sure reftest_screenshots have hashes.
 
     Marionette internal reftest runner does not produce hashes.
@@ -180,13 +180,13 @@ def crashtest_result_converter(self, test, result):
 
 
 class ExecutorException(Exception):
-    def __init__(self, status, message):
+    def __init__(self, status, message) -> None:
         self.status = status
         self.message = message
 
 
 class TimedRunner:
-    def __init__(self, logger, func, protocol, url, timeout, extra_timeout):
+    def __init__(self, logger, func, protocol, url, timeout, extra_timeout) -> None:
         self.func = func
         self.logger = logger
         self.result = None
@@ -241,7 +241,7 @@ class TimedRunner:
     def set_timeout(self):
         raise NotImplementedError
 
-    def before_run(self):
+    def before_run(self) -> None:
         pass
 
     def run_func(self):
@@ -278,7 +278,7 @@ class TestExecutor:
 
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
-                 debug_info=None, subsuite=None, **kwargs):
+                 debug_info=None, subsuite=None, **kwargs) -> None:
         self.logger = logger
         self.runner = None
         self.browser = browser
@@ -290,7 +290,7 @@ class TestExecutor:
                                  "prefs": {}}
         self.protocol = None  # This must be set in subclasses
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> None:
         """Run steps needed before tests can be started e.g. connecting to
         browser instance
 
@@ -303,17 +303,17 @@ class TestExecutor:
         elif self.protocol is not None:
             self.protocol.setup(runner)
 
-    def teardown(self):
+    def teardown(self) -> None:
         """Run cleanup steps after tests have finished"""
         if self.protocol is not None:
             self.protocol.teardown()
 
-    def reset(self):
+    def reset(self) -> None:
         """Re-initialize internal state to facilitate repeated test execution
         as implemented by the `--rerun` command-line argument."""
         pass
 
-    def run_test(self, test):
+    def run_test(self, test) -> None:
         """Run a particular test.
 
         :param test: The test to run"""
@@ -350,7 +350,7 @@ class TestExecutor:
         :param test: The test to run."""
         pass
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         pass
 
     def result_from_exception(self, test, e, exception_string):
@@ -377,7 +377,7 @@ class RefTestExecutor(TestExecutor):
     is_print = False
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1, screenshot_cache=None,
-                 debug_info=None, reftest_screenshot="unexpected", **kwargs):
+                 debug_info=None, reftest_screenshot="unexpected", **kwargs) -> None:
         TestExecutor.__init__(self, logger, browser, server_config,
                               timeout_multiplier=timeout_multiplier,
                               debug_info=debug_info)
@@ -396,7 +396,7 @@ class PrintRefTestExecutor(TestExecutor):
 
 
 class RefTestImplementation:
-    def __init__(self, executor):
+    def __init__(self, executor) -> None:
         self.timeout_multiplier = executor.timeout_multiplier
         self.executor = executor
         self.subsuite = executor.subsuite
@@ -408,10 +408,10 @@ class RefTestImplementation:
         self.message = None
         self.reftest_screenshot = executor.reftest_screenshot
 
-    def setup(self):
+    def setup(self) -> None:
         pass
 
-    def teardown(self):
+    def teardown(self) -> None:
         pass
 
     @property
@@ -438,7 +438,7 @@ class RefTestImplementation:
         self.message.append(f"{test.url} {rv[0]}")
         return True, rv
 
-    def reset(self):
+    def reset(self) -> None:
         self.screenshot_cache.clear()
 
     def check_pass(self, hashes, screenshots, urls, relation, fuzzy):
@@ -514,7 +514,7 @@ class RefTestImplementation:
                           "" if page_idx is None else " on page %i" % (page_idx + 1)))
         return per_channel, count
 
-    def check_if_solid_color(self, image, url):
+    def check_if_solid_color(self, image, url) -> None:
         extrema = image.getextrema()
         if all(min == max for min, max in extrema):
             color = ''.join('%02X' % value for value, _ in extrema)
@@ -672,7 +672,7 @@ class WdspecExecutor(TestExecutor):
 
     def __init__(self, logger, browser, server_config, webdriver_binary,
                  webdriver_args, target_platform, timeout_multiplier=1, capabilities=None,
-                 debug_info=None, binary=None, binary_args=None, **kwargs):
+                 debug_info=None, binary=None, binary_args=None, **kwargs) -> None:
         super().__init__(logger, browser, server_config,
                          timeout_multiplier=timeout_multiplier,
                          debug_info=debug_info)
@@ -687,7 +687,7 @@ class WdspecExecutor(TestExecutor):
         os_map = {"win": "windows"}
         self.target_platform = os_map.get(target_platform, target_platform)
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> None:
         assert protocol is None, "Switch executor not allowed for wdspec tests."
         self.protocol = self.protocol_cls(self, self.browser)
         super().setup(runner)
@@ -695,7 +695,7 @@ class WdspecExecutor(TestExecutor):
     def is_alive(self):
         return self.protocol.is_alive()
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         pass
 
     def do_test(self, test):
@@ -733,7 +733,7 @@ class WdspecExecutor(TestExecutor):
 
 
 class WdspecRun:
-    def __init__(self, func, path, timeout):
+    def __init__(self, func, path, timeout) -> None:
         self.func = func
         self.result = (None, None)
         self.path = path
@@ -756,7 +756,7 @@ class WdspecRun:
 
         return self.result
 
-    def _run(self):
+    def _run(self) -> None:
         try:
             self.result = True, self.func(self.path, self.timeout)
         except (socket.timeout, OSError):
@@ -781,7 +781,7 @@ class CallbackHandler:
     unimplemented_exc: ClassVar[Tuple[Type[Exception], ...]] = (NotImplementedError,)
     expected_exc: ClassVar[Tuple[Type[Exception], ...]] = ()
 
-    def __init__(self, logger, protocol, test_window):
+    def __init__(self, logger, protocol, test_window) -> None:
         self.protocol = protocol
         self.test_window = test_window
         self.logger = logger
@@ -845,7 +845,7 @@ class CallbackHandler:
 
         return False, None
 
-    def _send_message(self, cmd_id, message_type, status, message=None):
+    def _send_message(self, cmd_id, message_type, status, message=None) -> None:
         self.protocol.testdriver.send_message(cmd_id, message_type, status, message=message)
 
 
@@ -854,7 +854,7 @@ class AsyncCallbackHandler(CallbackHandler):
     Handle synchronous and asynchronous actions. Extends `CallbackHandler` with support of async actions.
     """
 
-    def __init__(self, logger, protocol, test_window, loop):
+    def __init__(self, logger, protocol, test_window, loop) -> None:
         super().__init__(logger, protocol, test_window)
         self.loop = loop
         self.async_actions = {cls.name: cls(self.logger, self.protocol) for cls in async_actions}
@@ -908,13 +908,13 @@ class AsyncCallbackHandler(CallbackHandler):
 
 
 class ActionContext:
-    def __init__(self, logger, protocol, context):
+    def __init__(self, logger, protocol, context) -> None:
         self.logger = logger
         self.protocol = protocol
         self.context = context
         self.initial_window = None
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         if self.context is None:
             return
 
@@ -922,7 +922,7 @@ class ActionContext:
         self.logger.debug("Switching to window %s" % self.context)
         self.protocol.testdriver.switch_to_window(self.context, self.initial_window)
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         if self.context is None:
             return
 

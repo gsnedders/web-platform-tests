@@ -129,7 +129,7 @@ def get_loader(test_paths: wptcommandline.TestPaths,
     return test_queue_builder, test_loader
 
 
-def list_test_groups(test_paths, product, **kwargs):
+def list_test_groups(test_paths, product, **kwargs) -> None:
     env.do_delayed_imports(logger, test_paths)
 
     test_queue_builder, test_loader = get_loader(test_paths,
@@ -144,7 +144,7 @@ def list_test_groups(test_paths, product, **kwargs):
         print(item)
 
 
-def list_disabled(test_paths, product, **kwargs):
+def list_disabled(test_paths, product, **kwargs) -> None:
     env.do_delayed_imports(logger, test_paths)
 
     rv = []
@@ -157,7 +157,7 @@ def list_disabled(test_paths, product, **kwargs):
     print(json.dumps(rv, indent=2))
 
 
-def list_tests(test_paths, product, **kwargs):
+def list_tests(test_paths, product, **kwargs) -> None:
     env.do_delayed_imports(logger, test_paths)
 
     _, test_loader = get_loader(test_paths, product, **kwargs)
@@ -166,7 +166,7 @@ def list_tests(test_paths, product, **kwargs):
         print(test)
 
 
-def list_tests_json(test_paths, product, **kwargs):
+def list_tests_json(test_paths, product, **kwargs) -> None:
     env.do_delayed_imports(logger, test_paths)
 
     _, test_loader = get_loader(test_paths, product, **kwargs)
@@ -212,7 +212,7 @@ def get_pause_after_test(test_loader, **kwargs):
 
 
 
-def log_suite_start(tests_by_group, base_run_info, subsuites, run_by_dir):
+def log_suite_start(tests_by_group, base_run_info, subsuites, run_by_dir) -> None:
     logger.suite_start(tests_by_group,
                        name='web-platform-test',
                        run_info=base_run_info,
@@ -223,7 +223,7 @@ def log_suite_start(tests_by_group, base_run_info, subsuites, run_by_dir):
 
 
 def run_test_iteration(test_status, test_loader, test_queue_builder,
-                       recording, test_environment, product, kwargs):
+                       recording, test_environment, product, kwargs) -> bool:
     """Runs the entire test suite.
     This is called for each repeat run requested."""
     tests_by_type = defaultdict(list)
@@ -357,7 +357,7 @@ def run_test_iteration(test_status, test_loader, test_queue_builder,
     return True
 
 
-def handle_interrupt_signals():
+def handle_interrupt_signals() -> None:
     def termination_handler(_signum, _unused_frame):
         raise KeyboardInterrupt()
     if sys.platform == "win32":
@@ -395,7 +395,7 @@ def evaluate_runs(test_status, **kwargs):
 
 class TestStatus:
     """Class that stores information on the results of test runs for later reference"""
-    def __init__(self):
+    def __init__(self) -> None:
         self.total_tests = 0
         self.skipped = 0
         self.unexpected = 0

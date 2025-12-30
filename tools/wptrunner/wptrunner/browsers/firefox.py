@@ -100,7 +100,7 @@ def get_timeout_multiplier(test_type, run_info_data, **kwargs):
     return 1 * multiplier
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "binary")
 
 
@@ -346,7 +346,7 @@ class FirefoxInstanceManager:
 
     def __init__(self, logger, binary, binary_args, profile_creator, debug_info,
                  chaos_mode_flags, headless,
-                 leak_check, stackfix_dir, symbols_path, gmp_path, asan, e10s):
+                 leak_check, stackfix_dir, symbols_path, gmp_path, asan, e10s) -> None:
         """Object that manages starting and stopping instances of Firefox."""
         self.logger = logger
         self.binary = binary
@@ -377,7 +377,7 @@ class FirefoxInstanceManager:
         must be called."""
         pass
 
-    def stop_current(self, force=False):
+    def stop_current(self, force=False) -> None:
         """Shutdown the current instance of Firefox.
 
         The BrowserInstance remains available through self.previous, since some
@@ -444,7 +444,7 @@ class SingleInstanceManager(FirefoxInstanceManager):
         self.current = self.start()
         return self.current
 
-    def teardown(self, force=False):
+    def teardown(self, force=False) -> None:
         for instance in [self.previous, self.current]:
             if instance:
                 instance.stop(force)
@@ -453,7 +453,7 @@ class SingleInstanceManager(FirefoxInstanceManager):
 
 
 class PreloadInstanceManager(FirefoxInstanceManager):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         """FirefoxInstanceManager that keeps once Firefox instance preloaded
         to allow rapid resumption after an instance shuts down."""
         super().__init__(*args, **kwargs)
@@ -471,7 +471,7 @@ class PreloadInstanceManager(FirefoxInstanceManager):
         self.pending = self.start()
         return self.current
 
-    def teardown(self, force=False):
+    def teardown(self, force=False) -> None:
         for instance, unused in [(self.previous, False),
                                  (self.current, False),
                                  (self.pending, True)]:
@@ -484,7 +484,7 @@ class PreloadInstanceManager(FirefoxInstanceManager):
 class BrowserInstance:
     shutdown_timeout = 70
 
-    def __init__(self, logger, runner, marionette_port, output_handler, leak_report_file):
+    def __init__(self, logger, runner, marionette_port, output_handler, leak_report_file) -> None:
         """Handle to a running Firefox instance"""
         self.logger = logger
         self.runner = runner
@@ -492,7 +492,7 @@ class BrowserInstance:
         self.output_handler = output_handler
         self.leak_report_file = leak_report_file
 
-    def stop(self, force=False, unused=False):
+    def stop(self, force=False, unused=False) -> None:
         """Stop Firefox
 
         :param force: Signal the firefox process without waiting for a clean shutdown
@@ -545,14 +545,14 @@ class BrowserInstance:
             return self.runner.is_running()
         return False
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         self.runner.cleanup()
         self.runner = None
 
 
 class FirefoxOutputHandler(OutputHandler):
     def __init__(self, logger, command, symbols_path=None, stackfix_dir=None, asan=False,
-                 leak_report_file=None):
+                 leak_report_file=None) -> None:
         """Filter for handling Firefox process output.
 
         This receives Firefox process output in the __call__ function, does
@@ -585,7 +585,7 @@ class FirefoxOutputHandler(OutputHandler):
 
     def start(self, group_metadata=None, lsan_disabled=False, lsan_allowed=None,
               lsan_max_stack_depth=None, mozleak_allowed=None, mozleak_thresholds=None,
-              **kwargs):
+              **kwargs) -> None:
         """Configure the output handler"""
         if group_metadata is None:
             group_metadata = {}
@@ -604,7 +604,7 @@ class FirefoxOutputHandler(OutputHandler):
             self.lsan_handler = None
         super().start()
 
-    def after_process_stop(self, clean_shutdown=True):
+    def after_process_stop(self, clean_shutdown=True) -> None:
         super().after_process_stop(clean_shutdown)
         if self.lsan_handler:
             self.lsan_handler.process()
@@ -634,7 +634,7 @@ class FirefoxOutputHandler(OutputHandler):
             if os.path.exists(self.leak_report_file):
                 os.unlink(self.leak_report_file)
 
-    def __call__(self, line):
+    def __call__(self, line) -> None:
         """Write a line of output from the firefox process to the log"""
         if b"GLib-GObject-CRITICAL" in line:
             return
@@ -657,7 +657,7 @@ class GeckodriverOutputHandler(FirefoxOutputHandler):
     PORT_RE = re.compile(rb".*Listening on [^ :]*:(\d+)")
 
     def __init__(self, logger, command, symbols_path=None, stackfix_dir=None, asan=False,
-                 leak_report_file=None, init_deadline=None):
+                 leak_report_file=None, init_deadline=None) -> None:
         super().__init__(logger, command, symbols_path=symbols_path, stackfix_dir=stackfix_dir, asan=asan,
                          leak_report_file=leak_report_file)
         self.port = None
@@ -670,7 +670,7 @@ class GeckodriverOutputHandler(FirefoxOutputHandler):
             if self.init_deadline is not None and time.time() > self.init_deadline:
                 raise TimeoutError("Failed to get geckodriver port within the timeout")
 
-    def __call__(self, line):
+    def __call__(self, line) -> None:
         if self.port is None:
             m = self.PORT_RE.match(line)
             if m is not None:
@@ -683,7 +683,7 @@ class ProfileCreator:
     def __init__(self, logger, prefs_root, config, test_type, extra_prefs,
                  disable_fission, debug_test, browser_channel, binary,
                  package_name, certutil_binary, ca_certificate_path,
-                 allow_list_paths):
+                 allow_list_paths) -> None:
         self.logger = logger
         self.prefs_root = prefs_root
         self.config = config
@@ -750,7 +750,7 @@ class ProfileCreator:
 
         return prefs()
 
-    def _set_required_prefs(self, profile):
+    def _set_required_prefs(self, profile) -> None:
         """Set preferences required for wptrunner to function.
 
         Note that this doesn't set the marionette port, since we don't always
@@ -786,7 +786,7 @@ class ProfileCreator:
         if self.debug_test:
             profile.set_preferences({"devtools.console.stdout.content": True})
 
-    def _setup_ssl(self, profile):
+    def _setup_ssl(self, profile) -> None:
         """Create a certificate database to use in the test profile. This is configured
         to trust the CA Certificate that has signed the web-platform.test server
         certificate."""
@@ -812,7 +812,7 @@ class ProfileCreator:
         env[env_var] = (os.path.pathsep.join([certutil_dir, env[env_var]])
                         if env_var in env else certutil_dir)
 
-        def certutil(*args):
+        def certutil(*args) -> None:
             cmd = [self.certutil_binary] + list(args)
             self.logger.process_output("certutil",
                                        subprocess.check_output(cmd,
@@ -849,7 +849,7 @@ class FirefoxBrowser(Browser):
                  asan=False, chaos_mode_flags=None, config=None,
                  browser_channel="nightly", headless=None, preload_browser=False,
                  specialpowers_path=None, debug_test=False, allow_list_paths=None,
-                 gmp_path=None, **kwargs):
+                 gmp_path=None, **kwargs) -> None:
         super().__init__(logger, **kwargs)
 
         if timeout_multiplier:
@@ -910,12 +910,12 @@ class FirefoxBrowser(Browser):
                           "testdriver": True if test.test_type == "testharness" else getattr(test, "testdriver", False)}
         return self._settings
 
-    def start(self, group_metadata=None, **kwargs):
+    def start(self, group_metadata=None, **kwargs) -> None:
         self.instance = self.instance_manager.get()
         self.instance.output_handler.start(group_metadata,
                                            **kwargs)
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         self.instance_manager.stop_current(force)
         self.logger.debug("stopped")
 
@@ -926,7 +926,7 @@ class FirefoxBrowser(Browser):
     def is_alive(self):
         return self.instance and self.instance.is_alive()
 
-    def cleanup(self, force=False):
+    def cleanup(self, force=False) -> None:
         self.instance_manager.teardown(force)
 
     def executor_browser(self):
@@ -956,7 +956,7 @@ class FirefoxWdSpecBrowser(WebDriverBrowser):
                  disable_fission=False, stackfix_dir=None, leak_check=False,
                  asan=False, chaos_mode_flags=None, config=None, browser_channel="nightly",
                  headless=None, debug_test=False, profile_creator_cls=ProfileCreator,
-                 allow_list_paths=None, gmp_path=None, **kwargs):
+                 allow_list_paths=None, gmp_path=None, **kwargs) -> None:
 
         super().__init__(logger, binary, webdriver_binary, webdriver_args, **kwargs)
         self.binary = binary
@@ -1009,11 +1009,11 @@ class FirefoxWdSpecBrowser(WebDriverBrowser):
                                         leak_report_file=self.leak_report_file,
                                         init_deadline=self.init_deadline)
 
-    def start(self, group_metadata, **kwargs):
+    def start(self, group_metadata, **kwargs) -> None:
         self.leak_report_file = setup_leak_report(self.leak_check, self.profile, self.env)
         super().start(group_metadata, **kwargs)
 
-    def stop(self, force=False):
+    def stop(self, force=False) -> None:
         # Initially wait for any WebDriver session to cleanly shutdown if the
         # process doesn't have to be force stopped.
         # When this is called the executor is usually sending an end session
@@ -1058,7 +1058,7 @@ class FirefoxWdSpecBrowser(WebDriverBrowser):
                 self._output_handler.port = None
             self._port = None
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         super().cleanup()
         self.profile.cleanup()
 

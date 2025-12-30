@@ -18,13 +18,13 @@ from wptserve.config import ConfigBuilder
 logger = logging.getLogger()
 
 
-def setup_module(module):
+def setup_module(module) -> None:
     # Do a full GC collection, as mozprocess often creates garbage which then
     # breaks when its __del__ is called while subprocess.Popen is mocked below.
     gc.collect()
 
 
-def test_sauceconnect_success():
+def test_sauceconnect_success() -> None:
     with mock.patch.object(sauce.SauceConnect, "upload_prerun_exec"),\
             mock.patch.object(sauce.subprocess, "Popen") as Popen,\
             mock.patch.object(sauce.os.path, "exists") as exists:
@@ -55,7 +55,7 @@ def test_sauceconnect_success():
     (False, 1),
     (False, 2),
 ])
-def test_sauceconnect_failure_exit(readyfile, returncode):
+def test_sauceconnect_failure_exit(readyfile, returncode) -> None:
     with mock.patch.object(sauce.SauceConnect, "upload_prerun_exec"),\
             mock.patch.object(sauce.subprocess, "Popen") as Popen,\
             mock.patch.object(sauce.os.path, "exists") as exists,\
@@ -81,7 +81,7 @@ def test_sauceconnect_failure_exit(readyfile, returncode):
         sleep.assert_not_called()
 
 
-def test_sauceconnect_cleanup():
+def test_sauceconnect_cleanup() -> None:
     """Ensure that execution pauses when the process is closed while exiting
     the context manager. This allow Sauce Connect to close any active
     tunnels."""
@@ -108,7 +108,7 @@ def test_sauceconnect_cleanup():
 
         sleep.assert_called()
 
-def test_sauceconnect_failure_never_ready():
+def test_sauceconnect_failure_never_ready() -> None:
     with mock.patch.object(sauce.SauceConnect, "upload_prerun_exec"),\
             mock.patch.object(sauce.subprocess, "Popen") as Popen,\
             mock.patch.object(sauce.os.path, "exists") as exists,\
@@ -138,7 +138,7 @@ def test_sauceconnect_failure_never_ready():
         Popen.return_value.kill.assert_called()
 
 
-def test_sauceconnect_tunnel_domains():
+def test_sauceconnect_tunnel_domains() -> None:
     with mock.patch.object(sauce.SauceConnect, "upload_prerun_exec"),\
             mock.patch.object(sauce.subprocess, "Popen") as Popen,\
             mock.patch.object(sauce.os.path, "exists") as exists:

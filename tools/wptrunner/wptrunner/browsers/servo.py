@@ -33,7 +33,7 @@ __wptrunner__ = {
 }
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "binary")
 
 
@@ -75,7 +75,7 @@ def update_properties():
 
 class ServoBrowser(NullBrowser):
     def __init__(self, logger, binary, debug_info=None, binary_args=None,
-                 user_stylesheets=None, ca_certificate_path=None, **kwargs):
+                 user_stylesheets=None, ca_certificate_path=None, **kwargs) -> None:
         NullBrowser.__init__(self, logger, **kwargs)
         self.binary = binary
         self.debug_info = debug_info
@@ -98,7 +98,7 @@ class ServoWdspecBrowser(WebDriverBrowser):
     def __init__(self, logger, binary="servo", webdriver_binary="servo",
                  binary_args=None, webdriver_args=None, env=None, port=None,
                  headless=None,
-                 **kwargs):
+                 **kwargs) -> None:
 
         env = os.environ.copy() if env is None else env
         env["RUST_BACKTRACE"] = "1"

@@ -26,7 +26,7 @@ def setup(args, defaults, formatter_defaults=None):
     return logger
 
 
-def setup_stdlib_logger():
+def setup_stdlib_logger() -> None:
     logging.root.handlers = []
     logging.root = stdadapter.std_logging_adapter(logging.root)
 
@@ -42,7 +42,7 @@ class LogLevelRewriter:
     :param from_levels: List of levels which should be affected
     :param to_level: Log level to set for the affected messages
     """
-    def __init__(self, inner, from_levels, to_level):
+    def __init__(self, inner, from_levels, to_level) -> None:
         self.inner = inner
         self.from_levels = [item.upper() for item in from_levels]
         self.to_level = to_level.upper()
@@ -61,11 +61,11 @@ class LoggedAboveLevelHandler:
     :param min_level: Minimum level to record as a str (e.g., "CRITICAL")
 
     """
-    def __init__(self, min_level):
+    def __init__(self, min_level) -> None:
         self.min_level = log_levels[min_level.upper()]
         self.has_log = False
 
-    def __call__(self, data):
+    def __call__(self, data) -> None:
         if (data["action"] == "log" and
             not self.has_log and
             log_levels[data["level"]] <= self.min_level):
@@ -73,15 +73,15 @@ class LoggedAboveLevelHandler:
 
 
 class QueueHandler(logging.Handler):
-    def __init__(self, queue, level=logging.NOTSET):
+    def __init__(self, queue, level=logging.NOTSET) -> None:
         self.queue = queue
         logging.Handler.__init__(self, level=level)
 
-    def createLock(self):
+    def createLock(self) -> None:
         # The queue provides its own locking
         self.lock = NullRLock()
 
-    def emit(self, record):
+    def emit(self, record) -> None:
         msg = self.format(record)
         data = {"action": "log",
                 "level": record.levelname,
@@ -113,12 +113,12 @@ class NullRLock:
 
 class LogQueueThread(Thread):
     """Thread for handling log messages from a queue"""
-    def __init__(self, queue, logger):
+    def __init__(self, queue, logger) -> None:
         self.queue = queue
         self.logger = logger
         super().__init__(name="Thread-Log")
 
-    def run(self):
+    def run(self) -> None:
         while True:
             try:
                 data = self.queue.get()

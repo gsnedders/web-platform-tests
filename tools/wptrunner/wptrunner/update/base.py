@@ -9,7 +9,7 @@ exit_clean = object()
 class Step:
     provides: ClassVar[List[str]] = []
 
-    def __init__(self, logger):
+    def __init__(self, logger) -> None:
         self.logger = logger
 
     def run(self, step_index, state):
@@ -42,7 +42,7 @@ class Step:
     def create(self, data):
         raise NotImplementedError
 
-    def restore(self, state):
+    def restore(self, state) -> None:
         self.logger.debug(f"Step {self.__class__.__name__} using stored state")
         for key in self.provides:
             assert key in state
@@ -51,7 +51,7 @@ class Step:
 class StepRunner:
     steps: ClassVar[List[Type[Step]]] = []
 
-    def __init__(self, logger, state):
+    def __init__(self, logger, state) -> None:
         """Class that runs a specified series of Steps with a common State"""
         self.state = state
         self.logger = logger

@@ -44,7 +44,7 @@ __wptrunner__ = {"product": "chrome",
 from ..wpttest import Test
 
 
-def check_args(**kwargs):
+def check_args(**kwargs) -> None:
     require_arg(kwargs, "webdriver_binary")
 
 
@@ -243,7 +243,7 @@ class ChromeBrowser(WebDriverBrowser):
     def __init__(self,
                  logger: StructuredLogger,
                  leak_check: bool = False,
-                 **kwargs: Any):
+                 **kwargs: Any) -> None:
         super().__init__(logger, **kwargs)
         self._leak_check = leak_check
         self._actual_port = None
@@ -324,7 +324,7 @@ class ChromeDriverOutputHandler(OutputHandler):
     def __init__(self,
                  logger: StructuredLogger,
                  command: List[str],
-                 init_deadline: Optional[float] = None):
+                 init_deadline: Optional[float] = None) -> None:
         super().__init__(logger, command)
         self.port = None
         # TODO(crbug.com/354135326): Remove requested_port logic below after M132.
@@ -342,7 +342,7 @@ class ChromeDriverOutputHandler(OutputHandler):
             if self.init_deadline is not None and time.time() > self.init_deadline:
                 raise TimeoutError("Failed to get WebDriver port within the timeout")
 
-    def __call__(self, line):
+    def __call__(self, line) -> None:
         if self.port is None:
             m = self.PORT_RE.match(line)
             if m is not None:

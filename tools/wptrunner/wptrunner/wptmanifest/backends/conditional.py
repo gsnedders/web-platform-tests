@@ -7,7 +7,7 @@ from ..parser import parse
 
 
 class ConditionalValue:
-    def __init__(self, node, condition_func):
+    def __init__(self, node, condition_func) -> None:
         self.node = node
         assert callable(condition_func)
         self.condition_func = condition_func
@@ -29,7 +29,7 @@ class ConditionalValue:
             return [item.data for item in self.value_node.children]
 
     @value.setter
-    def value(self, value):
+    def value(self, value) -> None:
         if isinstance(self.value_node, ValueNode):
             self.value_node.data = value
         else:
@@ -53,7 +53,7 @@ class ConditionalValue:
             value = type_func(value)
         return value
 
-    def remove(self):
+    def remove(self) -> None:
         if len(self.node.parent.children) == 1:
             self.node.parent.remove()
         self.node.remove()
@@ -113,7 +113,7 @@ class Compiler(NodeVisitor):
     def _initial_output_node(self, node, **kwargs):
         return self.data_cls_getter(None, None)(node, **kwargs)
 
-    def visit_DataNode(self, node):
+    def visit_DataNode(self, node) -> None:
         if node is not self.tree:
             output_parent = self.output_node
             self.output_node = self.data_cls_getter(self.output_node, node)(node)
@@ -132,7 +132,7 @@ class Compiler(NodeVisitor):
 
         assert self.output_node is not None
 
-    def visit_KeyValueNode(self, node):
+    def visit_KeyValueNode(self, node) -> None:
         key_values = []
         for child in node.children:
             condition, value = self.visit(child)
@@ -215,22 +215,22 @@ class Compiler(NodeVisitor):
 
 
 class ManifestItem:
-    def __init__(self, node=None, **kwargs):
+    def __init__(self, node=None, **kwargs) -> None:
         self.node = node
         self.parent = None
         self.children = []
         self._data = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<conditional.ManifestItem %s>" % (self.node.data)
 
-    def __str__(self):
+    def __str__(self) -> str:
         rv = [repr(self)]
         for item in self.children:
             rv.extend("  %s" % line for line in str(item).split("\n"))
         return "\n".join(rv)
 
-    def __contains__(self, key):
+    def __contains__(self, key) -> bool:
         return key in self._data
 
     def __iter__(self):
@@ -255,7 +255,7 @@ class ManifestItem:
     def name(self):
         return self.node.data
 
-    def has_key(self, key):
+    def has_key(self, key) -> bool:
         for node in [self, self.root]:
             if key in node._data:
                 return True
@@ -276,7 +276,7 @@ class ManifestItem:
                         return cond_value.value
         raise KeyError
 
-    def set(self, key, value, condition=None):
+    def set(self, key, value, condition=None) -> None:
         # First try to update the existing value
         if key in self._data:
             cond_values = self._data[key]
@@ -325,7 +325,7 @@ class ManifestItem:
         else:
             self._data[key].append(cond_value)
 
-    def clear(self, key):
+    def clear(self, key) -> None:
         """Clear all the expected data for this node"""
         if key in self._data:
             for child in self.node.children:
@@ -340,7 +340,7 @@ class ManifestItem:
             return self._data[property_name]
         return []
 
-    def _add_key_value(self, node, values):
+    def _add_key_value(self, node, values) -> None:
         """Called during construction to set a key-value node"""
         self._data[node.data] = values
 
@@ -351,11 +351,11 @@ class ManifestItem:
             self.node.append(child.node)
         return child
 
-    def remove(self):
+    def remove(self) -> None:
         if self.parent:
             self.parent._remove_child(self)
 
-    def _remove_child(self, child):
+    def _remove_child(self, child) -> None:
         self.children.remove(child)
         child.parent = None
         child.node.remove()
@@ -383,7 +383,7 @@ class ManifestItem:
         for item in self._data:
             yield item, self._data[item]
 
-    def remove_value(self, key, value):
+    def remove_value(self, key, value) -> None:
         if key not in self._data:
             return
         try:

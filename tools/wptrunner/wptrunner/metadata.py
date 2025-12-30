@@ -27,14 +27,14 @@ except ImportError:
 class RunInfo:
     """A wrapper around RunInfo dicts so that they can be hashed by identity"""
 
-    def __init__(self, dict_value):
+    def __init__(self, dict_value) -> None:
         self.data = dict_value
         self.canonical_repr = tuple(tuple(item) for item in sorted(dict_value.items()))
 
     def __getitem__(self, key):
         return self.data[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         raise TypeError
 
     def __hash__(self):
@@ -117,7 +117,7 @@ def get_properties(properties_file=None, extra_properties=None, config=None, pro
 
 def update_expected(test_paths, log_file_names,
                     update_properties, full_update=False, disable_intermittent=None,
-                    update_intermittent=False, remove_intermittent=False, **kwargs):
+                    update_intermittent=False, remove_intermittent=False, **kwargs) -> None:
     """Update the metadata files for web-platform-tests based on
     the results obtained in a previous run or runs
 
@@ -160,7 +160,7 @@ def update_expected(test_paths, log_file_names,
                         logger.info("disabled: %s" % test.root.test_path)
 
 
-def do_delayed_imports():
+def do_delayed_imports() -> None:
     global manifest, manifestitem
     from manifest import manifest, item as manifestitem  # type: ignore
 
@@ -197,13 +197,13 @@ class InternedData:
     type_conv = None
     rev_type_conv = None
 
-    def __init__(self, max_bits: int = 8):
+    def __init__(self, max_bits: int = 8) -> None:
         self.max_idx = 2**max_bits - 2
         # Reserve 0 as a sentinal
         self._data: Tuple[List[object], Dict[int, object]]
         self._data = [None], {}
 
-    def clear(self):
+    def clear(self) -> None:
         self.__init__()
 
     def store(self, obj):
@@ -340,7 +340,7 @@ def directory_manifests(metadata_path):
     return rv
 
 
-def write_new_expected(metadata_path, expected):
+def write_new_expected(metadata_path, expected) -> None:
     # Serialize the data back to a file
     path = expected_path(metadata_path, expected.test_path)
     if not expected.is_empty:
@@ -368,7 +368,7 @@ def write_new_expected(metadata_path, expected):
 
 
 class ExpectedUpdater:
-    def __init__(self, id_test_map):
+    def __init__(self, id_test_map) -> None:
         self.id_test_map = id_test_map
         self.base_run_info = None
         self.run_info_by_subsuite = {}
@@ -383,7 +383,7 @@ class ExpectedUpdater:
                            "mozleak_total": self.mozleak_total}
         self.tests_visited = {}
 
-    def update_from_log(self, log_file):
+    def update_from_log(self, log_file) -> None:
         # We support three possible formats:
         # * wptreport format; one json object in the file, possibly pretty-printed
         # * wptreport format; one run per line
@@ -410,7 +410,7 @@ class ExpectedUpdater:
         log_file.seek(0)
         self.update_from_raw_log(log_file)
 
-    def get_wptreport_data(self, input_str):
+    def get_wptreport_data(self, input_str) -> bool:
         try:
             data = json.loads(input_str)
         except Exception:
@@ -421,7 +421,7 @@ class ExpectedUpdater:
                 return True
         return False
 
-    def update_from_raw_log(self, log_file):
+    def update_from_raw_log(self, log_file) -> None:
         action_map = self.action_map
         for line in log_file:
             try:
@@ -433,7 +433,7 @@ class ExpectedUpdater:
             if action in action_map:
                 action_map[action](data)
 
-    def update_from_wptreport_log(self, data):
+    def update_from_wptreport_log(self, data) -> None:
         action_map = self.action_map
         action_map["suite_start"]({"run_info": data["run_info"]})
         for subsuite, run_info in data.get("subsuites", {}).items():
@@ -472,19 +472,19 @@ class ExpectedUpdater:
                     item_data.update(item)
                     action_map[action](item_data)
 
-    def suite_start(self, data):
+    def suite_start(self, data) -> None:
         self.base_run_info = data["run_info"]
         run_info = RunInfo(data["run_info"])
         self.run_info_by_subsuite[""] = run_info_intern.store(run_info)
 
-    def add_subsuite(self, data):
+    def add_subsuite(self, data) -> None:
         run_info_data = self.base_run_info.copy()
         run_info_data.update(data["run_info"])
         run_info = RunInfo(run_info_data)
         name = data["name"]
         self.run_info_by_subsuite[name] = run_info_intern.store(run_info)
 
-    def test_start(self, data):
+    def test_start(self, data) -> None:
         test_id = intern(data["test"])
         try:
             self.id_test_map[test_id]
@@ -494,7 +494,7 @@ class ExpectedUpdater:
 
         self.tests_visited[test_id] = set()
 
-    def test_status(self, data):
+    def test_status(self, data) -> None:
         test_id = intern(data["test"])
         subtest = intern(data["subtest"])
         test_data = self.id_test_map.get(test_id)
@@ -511,7 +511,7 @@ class ExpectedUpdater:
         if expected and expected != status and status not in data.get("known_intermittent", []):
             test_data.set_requires_update()
 
-    def test_end(self, data):
+    def test_end(self, data) -> None:
         if data["status"] == "SKIP":
             return
 
@@ -529,7 +529,7 @@ class ExpectedUpdater:
             test_data.set_requires_update()
         del self.tests_visited[test_id]
 
-    def assertion_count(self, data):
+    def assertion_count(self, data) -> None:
         test_id = intern(data["test"])
         test_data = self.id_test_map.get(test_id)
         if test_data is None:
@@ -546,7 +546,7 @@ class ExpectedUpdater:
             dir_id = dir_id[1:]
         return dir_id, self.id_test_map[dir_id]
 
-    def lsan_leak(self, data):
+    def lsan_leak(self, data) -> None:
         if data["scope"] == "/":
             logger.warning("Not updating lsan annotations for root scope")
             return
@@ -556,7 +556,7 @@ class ExpectedUpdater:
         if not data.get("allowed_match"):
             test_data.set_requires_update()
 
-    def mozleak_object(self, data):
+    def mozleak_object(self, data) -> None:
         if data["scope"] == "/":
             logger.warning("Not updating mozleak annotations for root scope")
             return
@@ -567,7 +567,7 @@ class ExpectedUpdater:
         if not data.get("allowed"):
             test_data.set_requires_update()
 
-    def mozleak_total(self, data):
+    def mozleak_total(self, data) -> None:
         if data["scope"] == "/":
             logger.warning("Not updating mozleak annotations for root scope")
             return
@@ -632,12 +632,12 @@ class PackedResultList:
     status_intern InteredData objects to convert between the bit values
     and corresponding Python objects."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data = array.array("L")
 
     __slots__ = ("data", "raw_data")
 
-    def append(self, prop, run_info, value):
+    def append(self, prop, run_info, value) -> None:
         out_val = (prop << 20) + run_info
         if prop == prop_intern.store("status") and isinstance(value, int):
             out_val += value << 16
@@ -669,7 +669,7 @@ class TestFileData:
     __slots__ = ("url_base", "item_type", "test_path", "metadata_path", "tests",
                  "_requires_update", "data")
 
-    def __init__(self, url_base, item_type, metadata_path, test_path, tests):
+    def __init__(self, url_base, item_type, metadata_path, test_path, tests) -> None:
         self.url_base = url_base
         self.item_type = item_type
         self.test_path = test_path
@@ -678,14 +678,14 @@ class TestFileData:
         self._requires_update = False
         self.data = defaultdict(lambda: defaultdict(PackedResultList))
 
-    def set_requires_update(self):
+    def set_requires_update(self) -> None:
         self._requires_update = True
 
     @property
     def requires_update(self):
         return self._requires_update
 
-    def set(self, test_id, subtest_id, prop, run_info, value):
+    def set(self, test_id, subtest_id, prop, run_info, value) -> None:
         self.data[test_id][subtest_id].append(prop_intern.store(prop),
                                               run_info,
                                               value)

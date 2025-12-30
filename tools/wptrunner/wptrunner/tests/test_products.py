@@ -17,14 +17,14 @@ environment.do_delayed_imports(None, test_paths)
 
 
 @active_products("product")
-def test_load_active_product(product):
+def test_load_active_product(product) -> None:
     """test we can successfully load the product of the current testenv"""
     products.Product({}, product)
     # test passes if it doesn't throw
 
 
 @all_products("product")
-def test_load_all_products(product):
+def test_load_all_products(product) -> None:
     """test every product either loads or throws ImportError"""
     try:
         products.Product({}, product)
@@ -35,7 +35,7 @@ def test_load_all_products(product):
 @active_products("product", marks={
     "sauce": pytest.mark.skip("needs env extras kwargs"),
 })
-def test_server_start_config(product):
+def test_server_start_config(product) -> None:
     product_data = products.Product({}, product)
 
     env_extras = product_data.get_env_extras()

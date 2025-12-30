@@ -35,7 +35,7 @@ class LogActionFilter(BaseHandler):  # type: ignore
     :param actions: List of actions for which to fire the handler
     """
 
-    def __init__(self, inner, actions):
+    def __init__(self, inner, actions) -> None:
         """Extend BaseHandler and set inner and actions props on self."""
         BaseHandler.__init__(self, inner)
         self.inner = inner
@@ -53,7 +53,7 @@ class LogHandler(reader.LogHandler):  # type: ignore
 
     Subclasses reader.LogHandler.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self.results = OrderedDict()
 
     def find_or_create_test(self, data):
@@ -84,17 +84,17 @@ class LogHandler(reader.LogHandler):  # type: ignore
 
         return subtest
 
-    def test_start(self, data):
+    def test_start(self, data) -> None:
         test = self.find_or_create_test(data)
         test["start_time"] = data["time"]
 
-    def test_status(self, data):
+    def test_status(self, data) -> None:
         subtest = self.find_or_create_subtest(data)
         subtest["status"][data["status"]] += 1
         if data.get("message"):
             subtest["messages"].add(data["message"])
 
-    def test_end(self, data):
+    def test_end(self, data) -> None:
         test = self.find_or_create_test(data)
         test["status"][data["status"]] += 1
         # Timestamps are in ms since epoch.
@@ -182,7 +182,7 @@ def err_string(results_dict, iterations):
     return rv
 
 
-def write_github_checks_summary_inconsistent(log, inconsistent, iterations):
+def write_github_checks_summary_inconsistent(log, inconsistent, iterations) -> None:
     """Outputs a summary of inconsistent tests for GitHub Checks."""
     log("Some affected tests had inconsistent (flaky) results:\n")
     write_inconsistent(log, inconsistent, iterations)
@@ -194,7 +194,7 @@ def write_github_checks_summary_inconsistent(log, inconsistent, iterations):
         "`@web-platform-tests/wpt-core-team` in a comment for help.\n")
 
 
-def write_github_checks_summary_slow_tests(log, slow):
+def write_github_checks_summary_slow_tests(log, slow) -> None:
     """Outputs a summary of slow tests for GitHub Checks."""
     log("Some affected tests had slow results:\n")
     write_slow_tests(log, slow)
@@ -206,7 +206,7 @@ def write_github_checks_summary_slow_tests(log, slow):
         "`@web-platform-tests/wpt-core-team` in a comment.\n")
 
 
-def write_inconsistent(log, inconsistent, iterations):
+def write_inconsistent(log, inconsistent, iterations) -> None:
     """Output inconsistent tests to the passed in logging function."""
     log("## Unstable results ##\n")
     strings = [(
@@ -218,7 +218,7 @@ def write_inconsistent(log, inconsistent, iterations):
     table(["Test", "Subtest", "Results", "Messages"], strings, log)
 
 
-def write_slow_tests(log, slow):
+def write_slow_tests(log, slow) -> None:
     """Output slow tests to the passed in logging function."""
     log("## Slow tests ##\n")
     strings = [(
@@ -230,7 +230,7 @@ def write_slow_tests(log, slow):
     table(["Test", "Result", "Longest duration (ms)", "Timeout (ms)"], strings, log)
 
 
-def write_results(log, results, iterations, pr_number=None, use_details=False):
+def write_results(log, results, iterations, pr_number=None, use_details=False) -> None:
     log("## All results ##\n")
     if use_details:
         log("<details>\n")
@@ -338,7 +338,7 @@ def get_steps(logger, repeat_loop, repeat_restart, kwargs_extras):
     return steps
 
 
-def write_summary(logger, step_results, final_result):
+def write_summary(logger, step_results, final_result) -> None:
     for desc, result in step_results:
         logger.info('::: %s : %s' % (desc, result))
     logger.info(':::')
@@ -354,7 +354,7 @@ def write_summary(logger, step_results, final_result):
 
 
 def check_stability(logger, repeat_loop=10, repeat_restart=5, chaos_mode=True, max_time=None,
-                    output_results=True, **kwargs):
+                    output_results=True, **kwargs) -> int:
     kwargs_extras = [{}]
     if chaos_mode and kwargs["product"] == "firefox":
         kwargs_extras.append({"chaos_mode_flags": int("0xfb", base=16)})

@@ -8,7 +8,7 @@ from .. import wptcommandline
 
 from .update import WPTUpdate
 
-def remove_logging_args(args):
+def remove_logging_args(args) -> None:
     """Take logging args out of the dictionary of command line arguments so
     they are not passed in as kwargs to the update code. This is particularly
     necessary here because the arguments are often of type file, which cannot
@@ -39,7 +39,7 @@ def run_update(logger, **kwargs):
     return updater.run()
 
 
-def main():
+def main() -> None:
     args = wptcommandline.parse_args_update()
     logger = setup_logging(args, {"mach": sys.stdout})
     assert structuredlog.get_default_logger() is not None

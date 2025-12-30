@@ -30,7 +30,7 @@ class Compiler(base.Compiler):
 
         return self._compile(tree, data_cls_getter, **kwargs)
 
-    def visit_KeyValueNode(self, node):
+    def visit_KeyValueNode(self, node) -> None:
         key_name = node.data
         key_value = None
         for child in node.children:

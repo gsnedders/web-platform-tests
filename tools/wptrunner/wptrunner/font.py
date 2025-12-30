@@ -7,13 +7,15 @@ import plistlib
 
 from shutil import copy2, rmtree
 from subprocess import call, check_output
+from types import TracebackType
+from typing import Optional, Type
 
 HERE = os.path.dirname(__file__)
 SYSTEM = platform.system().lower()
 
 
 class FontInstaller:
-    def __init__(self, logger, font_dir=None, **fonts):
+    def __init__(self, logger, font_dir=None, **fonts) -> None:
         self.logger = logger
         self.font_dir = font_dir
         self.installed_fonts = False
@@ -23,7 +25,7 @@ class FontInstaller:
     def __call__(self, env_options=None, env_config=None):
         return self
 
-    def __enter__(self):
+    def __enter__(self) -> bool:
         for _, font_path in self.fonts.items():
             font_name = font_path.split('/')[-1]
             install = getattr(self, 'install_%s_font' % SYSTEM, None)
@@ -36,7 +38,7 @@ class FontInstaller:
             else:
                 self.logger.warning('Unable to install font: %s' % font_name)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> bool:
         if not self.installed_fonts:
             return False
 
@@ -51,7 +53,7 @@ class FontInstaller:
             else:
                 self.logger.warning('Unable to remove font: %s' % font_name)
 
-    def install_linux_font(self, font_name, font_path):
+    def install_linux_font(self, font_name, font_path) -> bool:
         if not self.font_dir:
             self.font_dir = os.path.join(os.path.expanduser('~'), '.fonts')
         if not os.path.exists(self.font_dir):
@@ -66,7 +68,7 @@ class FontInstaller:
             self.logger.error('fontconfig not available on this Linux system.')
             return False
 
-    def install_darwin_font(self, font_name, font_path):
+    def install_darwin_font(self, font_name, font_path) -> bool:
         if not self.font_dir:
             self.font_dir = os.path.join(os.path.expanduser('~'),
                                          'Library/Fonts')
@@ -109,7 +111,7 @@ class FontInstaller:
             return bool(SendNotifyMessageW(hwnd_broadcast, wm_fontchange,
                                            wparam, lparam))
 
-    def remove_linux_font(self, font_name, _):
+    def remove_linux_font(self, font_name, _) -> bool:
         if self.created_dir:
             rmtree(self.font_dir)
         else:
@@ -121,7 +123,7 @@ class FontInstaller:
             self.logger.error('fontconfig not available on this Linux system.')
             return False
 
-    def remove_darwin_font(self, font_name, _):
+    def remove_darwin_font(self, font_name, _) -> bool:
         if self.created_dir:
             rmtree(self.font_dir)
         else:

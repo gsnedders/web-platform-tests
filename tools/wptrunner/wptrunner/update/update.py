@@ -10,7 +10,7 @@ from .tree import GitTree, HgTree, NoVCSTree
 from .base import Step, StepRunner, exit_clean, exit_unclean
 from .state import SavedState, UnsavedState
 
-def setup_paths(sync_path):
+def setup_paths(sync_path) -> None:
     sys.path.insert(0, os.path.abspath(sync_path))
     from tools import localpaths  # noqa: F401
 
@@ -19,7 +19,7 @@ class LoadConfig(Step):
 
     provides = ["sync", "paths", "metadata_path", "tests_path"]
 
-    def create(self, state):
+    def create(self, state) -> None:
         state.sync = {"remote_url": state.kwargs["remote_url"],
                       "branch": state.kwargs["branch"],
                       "path": state.kwargs["sync_path"]}
@@ -37,7 +37,7 @@ class LoadTrees(Step):
 
     provides = ["local_tree", "sync_tree"]
 
-    def create(self, state):
+    def create(self, state) -> None:
         if os.path.exists(state.sync["path"]):
             sync_tree = GitTree(root=state.sync["path"])
         else:
@@ -57,7 +57,7 @@ class LoadTrees(Step):
 class SyncFromUpstream(Step):
     """Step that synchronises a local copy of the code with upstream."""
 
-    def create(self, state):
+    def create(self, state) -> None:
         if not state.kwargs["sync"]:
             return
 
@@ -80,7 +80,7 @@ class SyncFromUpstream(Step):
 class UpdateMetadata(Step):
     """Update the expectation metadata from a set of run logs"""
 
-    def create(self, state):
+    def create(self, state) -> None:
         if not state.kwargs["run_log"]:
             return
 
@@ -103,7 +103,7 @@ class UpdateMetadata(Step):
 class RemoveObsolete(Step):
     """Remove metadata files that don't corespond to an existing test file"""
 
-    def create(self, state):
+    def create(self, state) -> None:
         if not state.kwargs["remove_obsolete"]:
             return
 
@@ -136,7 +136,7 @@ class UpdateRunner(StepRunner):
 
 
 class WPTUpdate:
-    def __init__(self, logger, runner_cls=UpdateRunner, **kwargs):
+    def __init__(self, logger, runner_cls=UpdateRunner, **kwargs) -> None:
         """Object that controls the running of a whole wptupdate.
 
         :param runner_cls: Runner subclass holding the overall list of
@@ -187,5 +187,5 @@ class WPTUpdate:
 
         return rv
 
-    def abort(self):
+    def abort(self) -> None:
         self.state.clear()

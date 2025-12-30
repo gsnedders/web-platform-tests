@@ -34,7 +34,7 @@ webdriver = None
 class ServoExecutorMixin:
     def __init__(self, logger, browser, server_config, headless,
                  timeout_multiplier, debug_info,
-                 pause_after_test, reftest_screenshot="unexpected"):
+                 pause_after_test, reftest_screenshot="unexpected") -> None:
         super().__init__(logger, browser, server_config,
                          timeout_multiplier=timeout_multiplier,
                          debug_info=debug_info,
@@ -57,12 +57,12 @@ class ServoExecutorMixin:
         self.env_for_tests["HOST_FILE"] = self.hosts_path
         self.env_for_tests["RUST_BACKTRACE"] = "1"
 
-    def setup(self, runner, protocol=None):
+    def setup(self, runner, protocol=None) -> bool:
         self.runner = runner
         self.runner.send_message("init_succeeded")
         return True
 
-    def teardown(self):
+    def teardown(self) -> None:
         try:
             os.unlink(self.hosts_path)
         except OSError:
@@ -73,7 +73,7 @@ class ServoExecutorMixin:
         self.environment = new_environment
         return super().on_environment_change(new_environment)
 
-    def on_output(self, line):
+    def on_output(self, line) -> None:
         line = line.decode("utf8", "replace")
         if self.interactive:
             print(line)
@@ -124,7 +124,7 @@ class ServoTestharnessExecutor(ServoExecutorMixin, TestExecutor):
 
     def __init__(self, logger, browser, server_config, headless,
                  timeout_multiplier=1, debug_info=None,
-                 pause_after_test=False, **kwargs):
+                 pause_after_test=False, **kwargs) -> None:
         super().__init__(logger, browser, server_config,
                          headless,
                          timeout_multiplier=timeout_multiplier,
@@ -185,7 +185,7 @@ class ServoTestharnessExecutor(ServoExecutorMixin, TestExecutor):
 
         return result
 
-    def on_output(self, line):
+    def on_output(self, line) -> None:
         prefix = "ALERT: RESULT: "
         decoded_line = line.decode("utf8", "replace")
         if decoded_line.startswith(prefix):
@@ -197,12 +197,12 @@ class ServoTestharnessExecutor(ServoExecutorMixin, TestExecutor):
         else:
             super().on_output(line)
 
-    def on_finish(self):
+    def on_finish(self) -> None:
         self.result_flag.set()
 
 
 class TempFilename:
-    def __init__(self, directory):
+    def __init__(self, directory) -> None:
         self.directory = directory
         self.path = None
 
@@ -210,7 +210,7 @@ class TempFilename:
         self.path = os.path.join(self.directory, str(uuid.uuid4()))
         return self.path
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args, **kwargs) -> None:
         try:
             os.unlink(self.path)
         except OSError:
@@ -222,7 +222,7 @@ class ServoRefTestExecutor(ServoExecutorMixin, RefTestExecutor):
 
     def __init__(self, logger, browser, server_config, binary=None, timeout_multiplier=1,
                  screenshot_cache=None, debug_info=None, pause_after_test=False,
-                 reftest_screenshot="unexpected", **kwargs):
+                 reftest_screenshot="unexpected", **kwargs) -> None:
         super().__init__(logger,
                          browser,
                          server_config,
@@ -237,10 +237,10 @@ class ServoRefTestExecutor(ServoExecutorMixin, RefTestExecutor):
         self.implementation = RefTestImplementation(self)
         self.tempdir = tempfile.mkdtemp()
 
-    def reset(self):
+    def reset(self) -> None:
         self.implementation.reset()
 
-    def teardown(self):
+    def teardown(self) -> None:
         os.rmdir(self.tempdir)
         super().teardown()
 
@@ -302,7 +302,7 @@ class ServoRefTestExecutor(ServoExecutorMixin, RefTestExecutor):
 
 
 class ServoTimedRunner(TimedRunner):
-    def run_func(self):
+    def run_func(self) -> None:
         try:
             self.result = (True, self.func(self.protocol, self.url, self.timeout))
         except Exception as e:
@@ -314,7 +314,7 @@ class ServoTimedRunner(TimedRunner):
         finally:
             self.result_flag.set()
 
-    def set_timeout(self):
+    def set_timeout(self) -> None:
         pass
 
 
@@ -323,7 +323,7 @@ class ServoCrashtestExecutor(ServoExecutorMixin, TestExecutor):
 
     def __init__(self, logger, browser, server_config, headless,
                  binary=None, timeout_multiplier=1, screenshot_cache=None,
-                 debug_info=None, pause_after_test=False, **kwargs):
+                 debug_info=None, pause_after_test=False, **kwargs) -> None:
         super().__init__(logger,
                          browser,
                          server_config,

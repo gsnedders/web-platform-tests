@@ -9,7 +9,7 @@ import signal
 import socket
 import sys
 import time
-from typing import Optional
+from typing import Type, Optional
 
 import mozprocess
 from mozlog import get_default_logger, handlers
@@ -17,6 +17,7 @@ from mozlog.structuredlog import StructuredLogger
 
 from . import mpcontext
 from .wptlogging import LogLevelRewriter, QueueHandler, LogQueueThread
+from types import TracebackType
 
 here = os.path.dirname(__file__)
 repo_root = os.path.abspath(os.path.join(here, os.pardir, os.pardir, os.pardir))
@@ -27,7 +28,7 @@ from tools import localpaths  # noqa: F401
 serve = None
 
 
-def do_delayed_imports(logger, test_paths):
+def do_delayed_imports(logger, test_paths) -> None:
     global serve
 
     serve_root = serve_path(test_paths)
@@ -75,7 +76,7 @@ class ProxyLoggingContext:
     """Context manager object that handles setup and teardown of a log queue
     for handling logging messages from wptserve."""
 
-    def __init__(self, logger):
+    def __init__(self, logger) -> None:
         mp_context = mpcontext.get_context()
         self.log_queue = mp_context.Queue()
         self.logging_thread = LogQueueThread(self.log_queue, logger)
@@ -85,7 +86,7 @@ class ProxyLoggingContext:
         self.logging_thread.start()
         return self.logger_handler
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         self.log_queue.put(None)
         # Wait for thread to shut down but not for too long since it's a daemon
         self.logging_thread.join(1)
@@ -97,7 +98,7 @@ class TestEnvironment:
     def __init__(self, test_paths, testharness_timeout_multipler,
                  pause_after_test, debug_test, debug_info, options, ssl_config, env_extras,
                  enable_webtransport=False, mojojs_path=None, inject_script=None,
-                 suppress_handler_traceback=None, ws_extra=None):
+                 suppress_handler_traceback=None, ws_extra=None) -> None:
 
         self.test_paths = test_paths
         self.server = None
@@ -156,7 +157,7 @@ class TestEnvironment:
             self._stack.enter_context(self.ignore_interrupts())
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
         for servers in self.servers.values():
             for _, server in servers:
                 server.request_shutdown()
@@ -167,7 +168,7 @@ class TestEnvironment:
         self._stack.__exit__(exc_type, exc_val, exc_tb)
         self.env_extras_cms = None
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset state between retry attempts to isolate failures."""
         for cache in self.screenshot_caches.values():
             cache.clear()

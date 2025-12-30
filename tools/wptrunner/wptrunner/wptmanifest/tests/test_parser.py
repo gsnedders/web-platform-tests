@@ -9,24 +9,24 @@ from .. import parser
 
 
 class TestExpression(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.parser = parser.Parser()
 
     def parse(self, input_str):
         return self.parser.parse(input_str)
 
-    def compare(self, input_text, expected):
+    def compare(self, input_text, expected) -> None:
         actual = self.parse(input_text)
         self.match(expected, actual)
 
-    def match(self, expected_node, actual_node):
+    def match(self, expected_node, actual_node) -> None:
         self.assertEqual(expected_node[0], actual_node.__class__.__name__)
         self.assertEqual(expected_node[1], actual_node.data)
         self.assertEqual(len(expected_node[2]), len(actual_node.children))
         for expected_child, actual_child in zip(expected_node[2], actual_node.children):
             self.match(expected_child, actual_child)
 
-    def test_expr_0(self):
+    def test_expr_0(self) -> None:
         self.compare(
             b"""
 key:
@@ -43,7 +43,7 @@ key:
                   ]]]]]]
         )
 
-    def test_expr_1(self):
+    def test_expr_1(self) -> None:
         self.compare(
             b"""
 key:
@@ -63,7 +63,7 @@ key:
                   ]]]]]]
         )
 
-    def test_expr_2(self):
+    def test_expr_2(self) -> None:
         self.compare(
             b"""
 key:
@@ -82,7 +82,7 @@ key:
                   ]]]]]]
         )
 
-    def test_expr_3(self):
+    def test_expr_3(self) -> None:
         self.compare(
             b"""
 key:
@@ -99,15 +99,15 @@ key:
                   ]]]]]]
         )
 
-    def test_atom_0(self):
+    def test_atom_0(self) -> None:
         with self.assertRaises(parser.ParseError):
             self.parse(b"key: @Unknown")
 
-    def test_atom_1(self):
+    def test_atom_1(self) -> None:
         with self.assertRaises(parser.ParseError):
             self.parse(b"key: @true")
 
-    def test_list_expr(self):
+    def test_list_expr(self) -> None:
         self.compare(
             b"""
 key:
@@ -127,7 +127,7 @@ key:
                 ["ListNode", None,
                  [["ValueNode", "b", []]]]]]]])
 
-    def test_list_heading(self):
+    def test_list_heading(self) -> None:
         self.compare(
             b"""
 key:
@@ -146,7 +146,7 @@ key:
                   ]]]],
               ["DataNode", "b", []]]])
 
-    def test_if_1(self):
+    def test_if_1(self) -> None:
         with self.assertRaises(parser.ParseError):
             self.parse(b"key: if foo")
 

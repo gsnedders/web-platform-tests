@@ -39,7 +39,7 @@ class Protocol:
 
     implements: ClassVar[List[Type["ProtocolPart"]]] = []
 
-    def __init__(self, executor, browser):
+    def __init__(self, executor, browser) -> None:
         self.executor = executor
         self.browser = browser
 
@@ -53,7 +53,7 @@ class Protocol:
         """:returns: Current logger"""
         return self.executor.logger
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         """Is the browser connection still active
 
         :returns: A boolean indicating whether the connection is still active."""
@@ -94,7 +94,7 @@ class Protocol:
         initalized so can depend on a fully-populated object."""
         pass
 
-    def teardown(self):
+    def teardown(self) -> None:
         """Run cleanup steps after the tests are finished."""
         for cls in self.implements:
             getattr(self, cls.name).teardown()
@@ -108,7 +108,7 @@ class ProtocolPart:
 
     name: ClassVar[str]
 
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         self.parent = parent
         self.test_path = None
 
@@ -117,16 +117,16 @@ class ProtocolPart:
         """:returns: Current logger"""
         return self.parent.logger
 
-    def setup(self):
+    def setup(self) -> None:
         """Run any setup steps required for the ProtocolPart."""
         pass
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         """Run any post-connection steps. This happens after the ProtocolParts are
         initalized so can depend on a fully-populated object."""
         pass
 
-    def teardown(self):
+    def teardown(self) -> None:
         """Run any teardown steps required for the ProtocolPart."""
         pass
 
@@ -172,7 +172,7 @@ class BaseProtocolPart(ProtocolPart):
         pass
 
     @property
-    def current_window(self):
+    def current_window(self) -> None:
         """Return a handle identifying the current top level browsing context
 
         :returns: A protocol-specific handle"""
@@ -329,7 +329,7 @@ class AccessibilityProtocolPart(ProtocolPart):
         :param element: A protocol-specific handle to an element."""
         pass
 
-    def get_computed_role(self, element):
+    def get_computed_role(self, element) -> None:
         """Return the computed accessibility role for a specific element.
 
         :param element: A protocol-specific handle to an element."""
@@ -770,7 +770,7 @@ class ActionSequenceProtocolPart(ProtocolPart):
         :param actions: A protocol-specific handle to an array of actions."""
         pass
 
-    def release(self):
+    def release(self) -> None:
         pass
 
 
@@ -908,7 +908,7 @@ class LeakProtocolPart(ProtocolPart):
 
     name = "leak"
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         self.parent.base.load("about:blank")
         self.expected_counters = collections.Counter(self.get_counters())
 
@@ -1112,7 +1112,7 @@ class DebugProtocolPart(ProtocolPart):
         """Load devtools in the current window"""
         pass
 
-    def load_reftest_analyzer(self, test, result):
+    def load_reftest_analyzer(self, test, result) -> None:
         import io
         import mozlog
         from urllib.parse import quote, urljoin
@@ -1131,19 +1131,19 @@ class DebugProtocolPart(ProtocolPart):
 
 
 class ConnectionlessBaseProtocolPart(BaseProtocolPart):
-    def load(self, url):
+    def load(self, url) -> None:
         pass
 
-    def execute_script(self, script, asynchronous=False):
+    def execute_script(self, script, asynchronous=False) -> None:
         pass
 
-    def set_timeout(self, timeout):
+    def set_timeout(self, timeout) -> None:
         pass
 
-    def wait(self):
+    def wait(self) -> bool:
         return False
 
-    def set_window(self, handle):
+    def set_window(self, handle) -> None:
         pass
 
     def window_handles(self):
@@ -1153,17 +1153,17 @@ class ConnectionlessBaseProtocolPart(BaseProtocolPart):
 class ConnectionlessProtocol(Protocol):
     implements = [ConnectionlessBaseProtocolPart]
 
-    def connect(self):
+    def connect(self) -> None:
         pass
 
-    def after_connect(self):
+    def after_connect(self) -> None:
         pass
 
 
 class WdspecProtocol(ConnectionlessProtocol):
     implements = [ConnectionlessBaseProtocolPart]
 
-    def __init__(self, executor, browser):
+    def __init__(self, executor, browser) -> None:
         super().__init__(executor, browser)
 
     def is_alive(self):

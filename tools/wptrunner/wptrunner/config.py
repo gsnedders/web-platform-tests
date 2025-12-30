@@ -10,7 +10,7 @@ here = os.path.dirname(__file__)
 
 
 class ConfigDict(Dict[str, str]):
-    def __init__(self, base_path: str, *args: str, **kwargs: str):
+    def __init__(self, base_path: str, *args: str, **kwargs: str) -> None:
         self.base_path = base_path
         dict.__init__(self, *args, **kwargs)
 

@@ -16,14 +16,14 @@ ServoCommandExtensions = None
 here = os.path.dirname(__file__)
 
 
-def do_delayed_imports():
+def do_delayed_imports() -> None:
     global webdriver
     import webdriver
 
     global ServoCommandExtensions
 
     class ServoCommandExtensions:
-        def __init__(self, session):
+        def __init__(self, session) -> None:
             self.session = session
 
         def get_prefs(self, *prefs):
@@ -47,7 +47,7 @@ def do_delayed_imports():
             body = {}
             return self.session.send_session_command("POST", "servo/cookies/reset", body)
 
-        def change_prefs(self, old_prefs, new_prefs):
+        def change_prefs(self, old_prefs, new_prefs) -> None:
             # Servo interprets reset with an empty list as reset everything
             if old_prefs:
                 self.reset_prefs(*old_prefs.keys())
@@ -67,7 +67,7 @@ def parse_pref_value(value):
 
 
 class ServoDriverTestharnessProtocolPart(WebDriverTestharnessProtocolPart):
-    def reset_browser_state(self):
+    def reset_browser_state(self) -> None:
         self.parent.webdriver.extension.reset_all_cookies()
 
 
@@ -79,12 +79,12 @@ class ServoWebDriverProtocol(WebDriverProtocol):
         if base_part.name not in {part.name for part in implements}:
             implements.append(base_part)
 
-    def __init__(self, executor, browser, capabilities, **kwargs):
+    def __init__(self, executor, browser, capabilities, **kwargs) -> None:
         do_delayed_imports()
         self.implements = list(ServoWebDriverProtocol.implements)
         super().__init__(executor, browser, capabilities, **kwargs)
 
-    def connect(self):
+    def connect(self) -> None:
         """Connect to browser via WebDriver and crete a WebDriver session."""
         self.logger.debug("Connecting to WebDriver on URL: %s" % self.url)
 
@@ -104,13 +104,13 @@ class ServoWebDriverTestharnessExecutor(WebDriverTestharnessExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  close_after_done=True, capabilities=None, debug_info=None,
-                 **kwargs):
+                 **kwargs) -> None:
         WebDriverTestharnessExecutor.__init__(self, logger, browser, server_config,
                                               timeout_multiplier, capabilities=capabilities,
                                               debug_info=debug_info, close_after_done=close_after_done,
                                               cleanup_after_test=False)
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         self.protocol.webdriver.extension.change_prefs(
             self.last_environment.get("prefs", {}),
             new_environment.get("prefs", {})
@@ -122,13 +122,13 @@ class ServoWebDriverRefTestExecutor(WebDriverRefTestExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, capabilities=None, debug_info=None,
-                 **kwargs):
+                 **kwargs) -> None:
         WebDriverRefTestExecutor.__init__(self, logger, browser, server_config,
                                           timeout_multiplier, screenshot_cache,
                                           capabilities=capabilities,
                                           debug_info=debug_info)
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         self.protocol.webdriver.extension.change_prefs(
             self.last_environment.get("prefs", {}),
             new_environment.get("prefs", {})
@@ -140,13 +140,13 @@ class ServoWebDriverCrashtestExecutor(WebDriverCrashtestExecutor):
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, capabilities=None, debug_info=None,
-                 **kwargs):
+                 **kwargs) -> None:
         WebDriverCrashtestExecutor.__init__(self, logger, browser, server_config,
                                             timeout_multiplier, screenshot_cache,
                                             capabilities=capabilities,
                                             debug_info=debug_info)
 
-    def on_environment_change(self, new_environment):
+    def on_environment_change(self, new_environment) -> None:
         self.protocol.webdriver.extension.change_prefs(
             self.last_environment.get("prefs", {}),
             new_environment.get("prefs", {})

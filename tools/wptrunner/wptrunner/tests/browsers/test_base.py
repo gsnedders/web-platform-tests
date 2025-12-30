@@ -14,10 +14,10 @@ from wptrunner.browsers import base
 
 
 class MozLogTestHandler(object):
-    def __init__(self):
+    def __init__(self) -> None:
         self.items = []
 
-    def __call__(self, data):
+    def __call__(self, data) -> None:
         self.items.append(data)
 
 
@@ -25,7 +25,7 @@ class MozLogTestHandler(object):
     sys.platform == "win32",
     reason="Relies on echo, which isn't an executable on Windows",
 )
-def test_logging_immediate_exit():
+def test_logging_immediate_exit() -> None:
     logger = structuredlog.StructuredLogger("test")
     handler = MozLogTestHandler()
     logger.add_handler(handler)
