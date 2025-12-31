@@ -57,7 +57,7 @@ def decode(s: str) -> str:
     return s
 
 
-def precedence(operator_node) -> int:
+def precedence(operator_node: Union[BinaryOperatorNode, UnaryOperatorNode]) -> int:
     return len(operators) - operators.index(operator_node.data)
 
 
