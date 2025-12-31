@@ -908,7 +908,7 @@ class ExpressionBuilder:
         self.operators: MutableSequence[Optional[Union[BinaryOperatorNode, UnaryOperatorNode]]] = [None]
         self.tokenizer = tokenizer
 
-    def finish(self):
+    def finish(self) -> Union[AtomExprNode, BinaryExpressionNode, NumberNode, StringNode, UnaryExpressionNode, VariableNode]:
         while self.operators[-1] is not None:
             self.pop_operator()
         rv = self.pop_operand()
@@ -947,13 +947,13 @@ class ExpressionBuilder:
     def push_operand(self, node: Union[AtomExprNode, NumberNode, StringNode, VariableNode]) -> None:
         self.operands.append(node)
 
-    def pop_operand(self):
+    def pop_operand(self) -> Union[AtomExprNode, BinaryExpressionNode, NumberNode, StringNode, UnaryExpressionNode, VariableNode]:
         return self.operands.pop()
 
     def is_empty(self) -> bool:
         return len(self.operands) == 0 and all(item is None for item in self.operators)
 
-    def precedence(self, operator) -> int:
+    def precedence(self, operator: Optional[Union[BinaryOperatorNode, UnaryOperatorNode]]) -> int:
         if operator is None:
             return 0
         return precedence(operator)
