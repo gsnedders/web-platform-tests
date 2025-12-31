@@ -15,7 +15,7 @@
 
 from enum import Enum, auto
 from io import BytesIO
-from typing import Optional, Generator, Tuple, Callable, MutableSequence, Union, Iterator, Literal
+from typing import Optional, Generator, Tuple, Callable, MutableSequence, Union, Iterator, Literal, Type
 
 from .node import (Node, AtomNode, AtomExprNode, BinaryExpressionNode, BinaryOperatorNode,
                    ConditionalNode, DataNode, IndexNode, KeyValueNode, ListNode,
@@ -166,7 +166,7 @@ class Tokenizer:
         if self.index < len(self.line):
             self.index += 1
 
-    def peek(self, length) -> str:
+    def peek(self, length: int) -> str:
         return self.line[self.index:self.index + length]
 
     def skip_whitespace(self) -> None:
@@ -291,6 +291,7 @@ class Tokenizer:
             self.state = self.list_end_state
         elif self.char() in ("'", '"'):
             quote_char = self.char()
+            assert isinstance(quote_char, str)
             self.consume()
             yield (token_types.string, self.consume_string(quote_char))
             self.skip_whitespace()
@@ -357,6 +358,7 @@ class Tokenizer:
         c = self.char()
         if c in ("'", '"'):
             quote_char = self.char()
+            assert isinstance(quote_char, str)
             self.consume()
             yield (token_types.string, self.consume_string(quote_char))
             self.state = self.line_end_state
@@ -425,7 +427,7 @@ class Tokenizer:
         else:
             raise ParseError(self.filename, self.line_number, "Junk before EOL %s" % c)
 
-    def consume_string(self, quote_char) -> str:
+    def consume_string(self, quote_char: str) -> str:
         rv = ""
         while True:
             c = self.char()
@@ -455,6 +457,7 @@ class Tokenizer:
         if c == eol:
             raise ParseError(self.filename, self.line_number, "EOL in expression")
         elif c in "'\"":
+            assert isinstance(c, str)  # XXX: why does the above not narrow this?
             self.consume()
             yield (token_types.string, self.consume_string(c))
         elif c == "#":
@@ -569,7 +572,7 @@ class Tokenizer:
         else:
             return c
 
-    def decode_escape(self, length):
+    def decode_escape(self, length: int) -> str:
         value = 0
         for i in range(length):
             c = self.char()
@@ -579,7 +582,7 @@ class Tokenizer:
 
         return chr(value)
 
-    def escape_value(self, c):
+    def escape_value(self, c: str) -> int:
         if '0' <= c <= '9':
             return ord(c) - ord('0')
         elif 'a' <= c <= 'f':
@@ -623,7 +626,7 @@ class Parser:
         assert self.token_generator is not None
         self.token = next(self.token_generator)
 
-    def expect(self, type, value=None):
+    def expect(self, type: token_types, value: Optional[str]=None) -> None:
         assert self.token is not None
         if self.token[0] != type:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number,
@@ -666,7 +669,7 @@ class Parser:
         self.data_block()
         self.expect(token_types.eof)
 
-    def data_block(self):
+    def data_block(self) -> None:
         assert self.token is not None
         while self.token[0] in {token_types.comment, token_types.string,
                                 token_types.paren}:
@@ -705,7 +708,7 @@ class Parser:
         if self.token[0] != token_types.eof:
             self.expect(token_types.group_end)
 
-    def value_block(self):
+    def value_block(self) -> None:
         assert self.token is not None
         if self.token[0] == token_types.list_start:
             self.consume()
@@ -779,7 +782,7 @@ class Parser:
         self.maybe_consume_inline_comment()
         self.tree.pop()
 
-    def atom(self):
+    def atom(self) -> None:
         assert self.token is not None
         if self.token[1] not in atoms:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Unrecognised symbol @%s" % self.token[1])
@@ -809,7 +812,7 @@ class Parser:
             self.expr_bin_op()
             self.expr_operand()
 
-    def expr_operand(self):
+    def expr_operand(self) -> None:
         assert self.token is not None
         assert self.expr_builder is not None
         if self.token == (token_types.paren, "("):
@@ -828,7 +831,7 @@ class Parser:
         else:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Unrecognised operand")
 
-    def expr_unary_op(self):
+    def expr_unary_op(self) -> None:
         assert self.token is not None
         assert self.expr_builder is not None
         if self.token[1] in unary_operators:
@@ -837,7 +840,7 @@ class Parser:
         else:
             raise ParseError(self.tokenizer.filename, self.tokenizer.line_number, "Expected unary operator")
 
-    def expr_bin_op(self):
+    def expr_bin_op(self) -> None:
         assert self.token is not None
         assert self.expr_builder is not None
         if self.token[1] in binary_operators:
@@ -849,9 +852,17 @@ class Parser:
     def expr_value(self) -> None:
         assert self.token is not None
         assert self.expr_builder is not None
-        node_type = {token_types.string: StringNode,
-                     token_types.ident: VariableNode,
-                     token_types.atom: AtomExprNode}[self.token[0]]
+
+        node_type: Union[Type[StringNode], Type[VariableNode], Type[AtomExprNode]]
+        if self.token[0] == token_types.string:
+            node_type = StringNode
+        elif self.token[0] == token_types.ident:
+            node_type = VariableNode
+        elif self.token[0] == token_types.atom:
+            node_type = AtomExprNode
+        else:
+            assert False, "unreachable"
+        
         if self.token[0] == token_types.atom:
             value = atoms[self.token[1]]
         else:
@@ -877,7 +888,7 @@ class Treebuilder:
         self.root = root
         self.node = root
 
-    def append(self, node):
+    def append(self, node: Union[AtomNode, ConditionalNode, DataNode, KeyValueNode, ListNode, ValueNode]) -> Node:
         assert isinstance(node, Node)
         self.node.append(node)
         self.node = node
@@ -892,9 +903,9 @@ class Treebuilder:
 
 
 class ExpressionBuilder:
-    def __init__(self, tokenizer) -> None:
-        self.operands = []
-        self.operators = [None]
+    def __init__(self, tokenizer: Tokenizer) -> None:
+        self.operands: MutableSequence[Union[AtomExprNode, NumberNode, StringNode, VariableNode, BinaryExpressionNode, UnaryExpressionNode]] = []
+        self.operators: MutableSequence[Optional[Union[BinaryOperatorNode, UnaryOperatorNode]]] = [None]
         self.tokenizer = tokenizer
 
     def finish(self):
@@ -907,7 +918,7 @@ class ExpressionBuilder:
     def left_paren(self) -> None:
         self.operators.append(None)
 
-    def right_paren(self):
+    def right_paren(self) -> None:
         while self.operators[-1] is not None:
             self.pop_operator()
             if not self.operators:
@@ -916,7 +927,7 @@ class ExpressionBuilder:
 
         assert self.operators.pop() is None
 
-    def push_operator(self, operator) -> None:
+    def push_operator(self, operator: Union[BinaryOperatorNode, UnaryOperatorNode]) -> None:
         assert operator is not None
         while self.precedence(self.operators[-1]) > self.precedence(operator):
             self.pop_operator()
@@ -933,16 +944,16 @@ class ExpressionBuilder:
             operand_0 = self.operands.pop()
             self.operands.append(UnaryExpressionNode(operator, operand_0))
 
-    def push_operand(self, node) -> None:
+    def push_operand(self, node: Union[AtomExprNode, NumberNode, StringNode, VariableNode]) -> None:
         self.operands.append(node)
 
     def pop_operand(self):
         return self.operands.pop()
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return len(self.operands) == 0 and all(item is None for item in self.operators)
 
-    def precedence(self, operator):
+    def precedence(self, operator) -> int:
         if operator is None:
             return 0
         return precedence(operator)
