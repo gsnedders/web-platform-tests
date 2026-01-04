@@ -1,5 +1,7 @@
 # mypy: allow-untyped-defs
 
+from wptrunner.wptmanifest.backends.base import ManifestItem
+from wptrunner.wptmanifest.backends.conditional import ManifestItem
 import unittest
 
 from ..backends import conditional
@@ -7,7 +9,7 @@ from ..node import BinaryExpressionNode, BinaryOperatorNode, VariableNode, Numbe
 
 
 class TestConditional(unittest.TestCase):
-    def compile(self, input_text):
+    def compile(self, input_text: bytes) -> ManifestItem:
         return conditional.compile(input_text)
 
     def test_get_0(self) -> None:

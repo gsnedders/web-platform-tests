@@ -1,5 +1,6 @@
 # mypy: allow-untyped-defs
 
+from wptrunner.wptmanifest.node import DataNode
 import unittest
 
 from .. import parser
@@ -12,14 +13,14 @@ class TestExpression(unittest.TestCase):
     def setUp(self) -> None:
         self.parser = parser.Parser()
 
-    def parse(self, input_str):
+    def parse(self, input_str: bytes) -> DataNode:
         return self.parser.parse(input_str)
 
-    def compare(self, input_text, expected) -> None:
+    def compare(self, input_text: bytes, expected) -> None:
         actual = self.parse(input_text)
         self.match(expected, actual)
 
-    def match(self, expected_node, actual_node) -> None:
+    def match(self, expected_node, actual_node: DataNode) -> None:
         self.assertEqual(expected_node[0], actual_node.__class__.__name__)
         self.assertEqual(expected_node[1], actual_node.data)
         self.assertEqual(len(expected_node[2]), len(actual_node.children))

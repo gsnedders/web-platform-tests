@@ -10,7 +10,7 @@ class TokenizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tokenizer = parser.Tokenizer()
 
-    def tokenize(self, input_str):
+    def tokenize(self, input_str: bytes):
         rv = []
         for item in self.tokenizer.tokenize(input_str):
             rv.append(item)
@@ -18,7 +18,7 @@ class TokenizerTest(unittest.TestCase):
                 break
         return rv
 
-    def compare(self, input_text, expected) -> None:
+    def compare(self, input_text: bytes, expected: list[tuple[token_types, str] | tuple[token_types, None]] | list[tuple[token_types, str]]) -> None:
         expected = expected + [(token_types.eof, None)]
         actual = self.tokenize(input_text)
         self.assertEqual(actual, expected)

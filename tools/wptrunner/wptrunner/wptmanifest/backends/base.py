@@ -1,5 +1,6 @@
 # mypy: allow-untyped-defs
 
+from wptrunner.wptmanifest.node import DataNode
 import abc
 
 from ..node import NodeVisitor
@@ -9,11 +10,11 @@ from ..parser import parse
 class Compiler(NodeVisitor):
     __metaclass__ = abc.ABCMeta
 
-    def compile(self, tree, data_cls_getter=None, **kwargs):
+    def compile(self, tree, data_cls_getter=None, **kwargs) -> ManifestItem:
         self._kwargs = kwargs
         return self._compile(tree, data_cls_getter, **kwargs)
 
-    def _compile(self, tree, data_cls_getter=None, **kwargs):
+    def _compile(self, tree, data_cls_getter=None, **kwargs) -> ManifestItem:
         """Compile a raw AST into a form where conditional expressions
         are represented by ConditionalValue objects that can be evaluated
         at runtime.
@@ -38,7 +39,7 @@ class Compiler(NodeVisitor):
         assert self.output_node is not None
         return self.output_node
 
-    def _initial_output_node(self, node, **kwargs):
+    def _initial_output_node(self, node, **kwargs) -> ManifestItem:
         return self.data_cls_getter(None, None)(node, **kwargs)
 
     def visit_DataNode(self, node) -> None:
@@ -61,7 +62,7 @@ class Compiler(NodeVisitor):
         assert self.output_node is not None
 
     @abc.abstractmethod
-    def visit_KeyValueNode(self, node):
+    def visit_KeyValueNode(self, node) -> None:
         pass
 
     def visit_ListNode(self, node):
@@ -74,10 +75,10 @@ class Compiler(NodeVisitor):
         return node.data
 
     @abc.abstractmethod
-    def visit_ConditionalNode(self, node):
+    def visit_ConditionalNode(self, node) -> None:
         pass
 
-    def visit_StringNode(self, node):
+    def visit_StringNode(self, node: ManifestItem):
         indexes = [self.visit(child) for child in node.children]
 
         def value(x):
@@ -87,7 +88,7 @@ class Compiler(NodeVisitor):
             return rv
         return value
 
-    def visit_NumberNode(self, node):
+    def visit_NumberNode(self, node) -> float | int:
         if "." in node.data:
             return float(node.data)
         else:
@@ -106,24 +107,24 @@ class Compiler(NodeVisitor):
     def visit_AtomExprNode(self, node):
         return node.data
 
-    def visit_IndexNode(self, node):
+    def visit_IndexNode(self, node: ManifestItem):
         assert len(node.children) == 1
         return self.visit(node.children[0])
 
     @abc.abstractmethod
-    def visit_UnaryExpressionNode(self, node):
+    def visit_UnaryExpressionNode(self, node) -> None:
         pass
 
     @abc.abstractmethod
-    def visit_BinaryExpressionNode(self, node):
+    def visit_BinaryExpressionNode(self, node) -> None:
         pass
 
     @abc.abstractmethod
-    def visit_UnaryOperatorNode(self, node):
+    def visit_UnaryOperatorNode(self, node) -> None:
         pass
 
     @abc.abstractmethod
-    def visit_BinaryOperatorNode(self, node):
+    def visit_BinaryOperatorNode(self, node) -> None:
         pass
 
 
@@ -147,7 +148,7 @@ class ManifestItem:
         pass
 
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         if self._data:
             return False
         return all(child.is_empty for child in self.children)
@@ -205,13 +206,13 @@ class ManifestItem:
     def itervalues(self):
         yield from self._flatten().values()
 
-    def append(self, child):
+    def append(self, child: ManifestItem) -> ManifestItem:
         child.parent = self
         self.children.append(child)
         return child
 
 
-def compile_ast(compiler, ast, data_cls_getter=None, **kwargs):
+def compile_ast(compiler, ast: DataNode, data_cls_getter=None, **kwargs):
     return compiler().compile(ast,
                               data_cls_getter=data_cls_getter,
                               **kwargs)

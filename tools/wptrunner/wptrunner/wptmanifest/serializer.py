@@ -7,7 +7,7 @@ atom_names = {v: "@%s" % k for (k,v) in atoms.items()}
 
 named_escapes = {"\a", "\b", "\f", "\n", "\r", "\t", "\v"}
 
-def escape(string, extras=""):
+def escape(string, extras: str="") -> str:
     # Assumes input bytes are either UTF8 bytes or unicode.
     rv = ""
     for c in string:
@@ -25,7 +25,7 @@ def escape(string, extras=""):
 
 
 class ManifestSerializer(NodeVisitor):
-    def __init__(self, skip_empty_data=False) -> None:
+    def __init__(self, skip_empty_data: bool=False) -> None:
         self.skip_empty_data = skip_empty_data
 
     def serialize(self, root):
@@ -38,7 +38,7 @@ class ManifestSerializer(NodeVisitor):
             rv = rv + "\n"
         return rv
 
-    def visit(self, node):
+    def visit(self, node: ListNode | ValueNode):
         lines = super().visit(node)
         comments = [f"#{comment}" for _, comment in node.comments]
         # Simply checking if the first line contains '#' is less than ideal; the
@@ -51,7 +51,7 @@ class ManifestSerializer(NodeVisitor):
                     break
         return comments + lines
 
-    def visit_DataNode(self, node):
+    def visit_DataNode(self, node) -> list[str]:
         rv = []
         if not self.skip_empty_data or node.children:
             if node.data:
@@ -68,7 +68,7 @@ class ManifestSerializer(NodeVisitor):
 
         return rv
 
-    def visit_KeyValueNode(self, node):
+    def visit_KeyValueNode(self, node) -> list[str]:
         rv = [escape(node.data, ":") + ":"]
         indent = " " * self.indent
 
@@ -80,13 +80,13 @@ class ManifestSerializer(NodeVisitor):
 
         return rv
 
-    def visit_ListNode(self, node):
+    def visit_ListNode(self, node) -> list[str]:
         rv = ["["]
         rv.extend(", ".join(self.visit(child)[0] for child in node.children))
         rv.append("]")
         return ["".join(rv)]
 
-    def visit_ValueNode(self, node):
+    def visit_ValueNode(self, node) -> list[str]:
         data = node.data
         if ("#" in data or
             data.startswith("if ") or
@@ -100,13 +100,13 @@ class ManifestSerializer(NodeVisitor):
             quote = ""
         return [quote + escape(data, extras=quote) + quote]
 
-    def visit_AtomNode(self, node):
+    def visit_AtomNode(self, node) -> list[str]:
         return [atom_names[node.data]]
 
     def visit_ConditionalNode(self, node):
         return ["if %s: %s" % tuple(self.visit(item)[0] for item in node.children)]
 
-    def visit_StringNode(self, node):
+    def visit_StringNode(self, node) -> list[str]:
         rv = ["\"%s\"" % escape(node.data, extras="\"")]
         for child in node.children:
             rv[0] += self.visit(child)[0]
@@ -115,10 +115,10 @@ class ManifestSerializer(NodeVisitor):
     def visit_NumberNode(self, node):
         return [node.data]
 
-    def visit_AtomExprNode(self, node):
+    def visit_AtomExprNode(self, node) -> list[str]:
         return [atom_names[node.data]]
 
-    def visit_VariableNode(self, node):
+    def visit_VariableNode(self, node) -> list[str]:
         rv = escape(node.data)
         for child in node.children:
             rv += self.visit(child)
@@ -128,7 +128,7 @@ class ManifestSerializer(NodeVisitor):
         assert len(node.children) == 1
         return ["[%s]" % self.visit(node.children[0])[0]]
 
-    def visit_UnaryExpressionNode(self, node):
+    def visit_UnaryExpressionNode(self, node) -> list[str]:
         children = []
         for child in node.children:
             child_str = self.visit(child)[0]
@@ -137,7 +137,7 @@ class ManifestSerializer(NodeVisitor):
             children.append(child_str)
         return [" ".join(children)]
 
-    def visit_BinaryExpressionNode(self, node):
+    def visit_BinaryExpressionNode(self, node) -> list[str]:
         assert len(node.children) == 3
         children = []
         for child_index in [1, 0, 2]:

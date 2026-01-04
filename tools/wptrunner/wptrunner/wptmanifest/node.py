@@ -4,7 +4,7 @@ from typing import Optional
 
 
 class NodeVisitor:
-    def visit(self, node):
+    def visit(self, node: list[str]):
         # This is ugly as hell, but we don't have multimethods and
         # they aren't trivial to fake without access to the class
         # object from the class body
@@ -23,7 +23,7 @@ class Node:
         other.parent = self
         self.children.append(other)
 
-    def remove(self):
+    def remove(self) -> None:
         if self.parent is None:
             raise ValueError("Cannot remove a node which has no parent")
 
@@ -48,7 +48,7 @@ class Node:
                 return False
         return True
 
-    def copy(self):
+    def copy(self) -> Node:
         new = self.__class__(self.data, self.comments)
         for item in self.children:
             new.append(item.copy())
@@ -56,7 +56,7 @@ class Node:
 
 
 class DataNode(Node):
-    def append(self, other):
+    def append(self, other) -> None:
         # Append that retains the invariant that child data nodes
         # come after child nodes of other types
         other.parent = self
@@ -73,7 +73,7 @@ class DataNode(Node):
 
 
 class KeyValueNode(Node):
-    def append(self, other):
+    def append(self, other) -> None:
         # Append that retains the invariant that conditional nodes
         # come before unconditional nodes
         other.parent = self
@@ -106,7 +106,7 @@ class AtomNode(ValueNode):
 
 
 class ConditionalNode(Node):
-    def append(self, other):
+    def append(self, other) -> None:
         if not len(self.children):
             if not isinstance(other, (BinaryExpressionNode, UnaryExpressionNode, VariableNode)):
                 raise TypeError
@@ -129,7 +129,7 @@ class UnaryExpressionNode(Node):
         Node.append(self, other)
         assert len(self.children) <= 2
 
-    def copy(self):
+    def copy(self) -> UnaryExpressionNode:
         new = self.__class__(self.children[0].copy(),
                              self.children[1].copy())
         return new
@@ -146,7 +146,7 @@ class BinaryExpressionNode(Node):
         Node.append(self, other)
         assert len(self.children) <= 3
 
-    def copy(self):
+    def copy(self) -> BinaryExpressionNode:
         new = self.__class__(self.children[0].copy(),
                              self.children[1].copy(),
                              self.children[2].copy())

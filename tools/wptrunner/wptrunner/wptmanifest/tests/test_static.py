@@ -1,5 +1,7 @@
 # mypy: allow-untyped-defs
 
+from wptrunner.wptmanifest.backends.base import ManifestItem
+from wptrunner.wptmanifest.backends.conditional import ManifestItem
 import unittest
 
 from ..backends import static
@@ -9,7 +11,7 @@ from ..backends import static
 
 
 class TestStatic(unittest.TestCase):
-    def compile(self, input_text, input_data):
+    def compile(self, input_text: bytes, input_data) -> ManifestItem:
         return static.compile(input_text, input_data)
 
     def test_get_0(self) -> None:

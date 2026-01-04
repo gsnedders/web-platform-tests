@@ -1,5 +1,8 @@
 # mypy: allow-untyped-defs
 
+from wptrunner.wptmanifest.node import DataNode
+from wptrunner.wptmanifest.backends.base import ManifestItem
+from wptrunner.wptmanifest.backends.conditional import ManifestItem
 import operator
 
 from . import base
@@ -10,7 +13,7 @@ class Compiler(base.Compiler):
     """Compiler backend that evaluates conditional expressions
     to give static output"""
 
-    def compile(self, tree, expr_data, data_cls_getter=None, **kwargs):
+    def compile(self, tree: DataNode, expr_data, data_cls_getter=None, **kwargs) -> ManifestItem:
         """Compile a raw AST into a form with conditional expressions
         evaluated.
 
@@ -78,7 +81,7 @@ class Compiler(base.Compiler):
 
         return operator(operand_0, operand_1)
 
-    def visit_UnaryOperatorNode(self, node):
+    def visit_UnaryOperatorNode(self, node) -> (a: object, /) -> bool:
         return {"not": operator.not_}[node.data]
 
     def visit_BinaryOperatorNode(self, node):
@@ -88,14 +91,14 @@ class Compiler(base.Compiler):
                 "!=": operator.ne}[node.data]
 
 
-def compile_ast(ast, expr_data, data_cls_getter=None, **kwargs):
+def compile_ast(ast: DataNode, expr_data, data_cls_getter=None, **kwargs) -> ManifestItem:
     return Compiler().compile(ast,
                               expr_data,
                               data_cls_getter=data_cls_getter,
                               **kwargs)
 
 
-def compile(stream, expr_data, data_cls_getter=None, **kwargs):
+def compile(stream, expr_data, data_cls_getter=None, **kwargs) -> ManifestItem:
     return compile_ast(parse(stream),
                        expr_data,
                        data_cls_getter=data_cls_getter,

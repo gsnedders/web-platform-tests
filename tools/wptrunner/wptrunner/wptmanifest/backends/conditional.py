@@ -40,7 +40,7 @@ class ConditionalValue:
             for list_value in value:
                 self.value_node.append(ValueNode(list_value))
 
-    def __call__(self, run_info):
+    def __call__(self, run_info) -> object:
         return self.condition_func(run_info)
 
     def value_as(self, type_func):
@@ -74,7 +74,7 @@ class ConditionalValue:
 
 
 class Compiler(NodeVisitor):
-    def compile(self, tree, data_cls_getter=None, **kwargs):
+    def compile(self, tree: DataNode, data_cls_getter=None, **kwargs) -> ManifestItem:
         """Compile a raw AST into a form where conditional expressions
         are represented by ConditionalValue objects that can be evaluated
         at runtime.
@@ -99,7 +99,7 @@ class Compiler(NodeVisitor):
         assert self.output_node is not None
         return self.output_node
 
-    def compile_condition(self, condition):
+    def compile_condition(self, condition: ConditionalNode):
         """Compile a ConditionalNode into a ConditionalValue.
 
         condition: A ConditionalNode"""
@@ -110,7 +110,7 @@ class Compiler(NodeVisitor):
         manifest_item = self.compile(data_node)
         return manifest_item._data[None][0]
 
-    def _initial_output_node(self, node, **kwargs):
+    def _initial_output_node(self, node: DataNode, **kwargs) -> ManifestItem:
         return self.data_cls_getter(None, None)(node, **kwargs)
 
     def visit_DataNode(self, node) -> None:
@@ -203,7 +203,7 @@ class Compiler(NodeVisitor):
 
         return lambda x: operator(operand_0(x), operand_1(x))
 
-    def visit_UnaryOperatorNode(self, node):
+    def visit_UnaryOperatorNode(self, node) -> (a: object, /) -> bool:
         return {"not": operator.not_}[node.data]
 
     def visit_BinaryOperatorNode(self, node):
@@ -239,7 +239,7 @@ class ManifestItem:
             yield from child
 
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         if self._data:
             return False
         return all(child.is_empty for child in self.children)
@@ -344,7 +344,7 @@ class ManifestItem:
         """Called during construction to set a key-value node"""
         self._data[node.data] = values
 
-    def append(self, child):
+    def append(self, child: ManifestItem) -> ManifestItem:
         self.children.append(child)
         child.parent = self
         if child.node.parent is not self.node:
@@ -395,11 +395,11 @@ class ManifestItem:
         value.remove()
 
 
-def compile_ast(ast, data_cls_getter=None, **kwargs):
+def compile_ast(ast: DataNode, data_cls_getter=None, **kwargs) -> ManifestItem:
     return Compiler().compile(ast, data_cls_getter=data_cls_getter, **kwargs)
 
 
-def compile(stream, data_cls_getter=None, **kwargs):
+def compile(stream, data_cls_getter=None, **kwargs) -> ManifestItem:
     return compile_ast(parse(stream),
                        data_cls_getter=data_cls_getter,
                        **kwargs)

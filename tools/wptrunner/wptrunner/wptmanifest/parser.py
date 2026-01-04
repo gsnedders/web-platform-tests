@@ -608,7 +608,7 @@ class Parser:
         self.expr_builders: MutableSequence[ExpressionBuilder] = []
         self.comments: MutableSequence[Union[CommentToken, InlineCommentToken]] = []
 
-    def parse(self, input):
+    def parse(self, input: str) -> DataNode:
         try:
             self.reset()
             self.token_generator = self.tokenizer.tokenize(input)
@@ -959,6 +959,6 @@ class ExpressionBuilder:
         return precedence(operator)
 
 
-def parse(stream):
+def parse(stream: str) -> DataNode:
     p = Parser()
     return p.parse(stream)

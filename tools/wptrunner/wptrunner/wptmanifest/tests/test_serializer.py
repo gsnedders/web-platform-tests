@@ -11,10 +11,10 @@ class SerializerTest(unittest.TestCase):
         self.serializer = serializer.ManifestSerializer()
         self.parser = parser.Parser()
 
-    def serialize(self, input_str):
+    def serialize(self, input_str: bytes):
         return self.serializer.serialize(self.parser.parse(input_str))
 
-    def compare(self, input_str, expected=None) -> None:
+    def compare(self, input_str: bytes, expected: str | None=None) -> None:
         if expected is None:
             expected = input_str.decode("utf-8")
         actual = self.serialize(input_str)
