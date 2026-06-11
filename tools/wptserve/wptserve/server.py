@@ -553,15 +553,12 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
 
         except OSError as e:
             self.logger.error(f'({self.uid}) Closing Connection - \n{str(e)}')
-            if not self.close_connection:
-                self.close_connection = True
         except ProtocolError as e:
             self.logger.debug(f'H2 protocol error - {str(e)}')
-            if not self.close_connection:
-                self.close_connection = True
         except Exception as e:
             self.logger.error(f'({self.uid}) Unexpected Error - \n{str(e)}')
         finally:
+            self.close_connection = True
             for thread, queue in stream_queues.values():
                 self._drain_queue(queue)
                 queue.put(None)

@@ -312,17 +312,6 @@ def test_handle_one_request_marks_connection_closed_on_recv_oserror():
     assert handler.close_connection is True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "The generic `except Exception` handler that catches unexpected "
-        "exceptions (AssertionError from defensive asserts, RuntimeError "
-        "from thread start, etc.) only logs; it does not set close_connection. "
-        "The flag must be moved to the finally block so it is set for all "
-        "exception types."
-    ),
-)
 def test_handle_one_request_marks_connection_closed_on_unexpected_exception():
     """Anything escaping the recv loop body that isn't OSError or
     ProtocolError — an AssertionError from one of our defensive asserts in
