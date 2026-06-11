@@ -532,6 +532,8 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                     elif hasattr(frame, 'stream_id') and frame.stream_id != 0:
                         # Stream ID 0 is reserved for connection control messages (RFC 9113 § 5.1.1)
                         # and is handled directly by h2, so we only create streams for stream IDs > 0
+                        if self.close_connection:
+                            continue
                         if frame.stream_id not in stream_queues:
                             queue = Queue()
                             stream_queues[frame.stream_id] = (self.start_stream_thread(frame, queue), queue)

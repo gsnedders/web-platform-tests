@@ -248,17 +248,8 @@ def test_stream_ws_sub_thread_signals_queue_on_uncaught_exception():
         "the parent _stream_ws_thread will block forever on queue.get()."
     )
     assert queue.get_nowait() is None
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "The RequestReceived branch lacks the `if self.close_connection: "
-        "continue` guard that prevents spawning a worker thread after "
-        "ConnectionTerminated has been processed. The guard must be added "
-        "so the recv loop skips late requests that arrive in the same "
-        "frame batch."
-    ),
-)
+
+
 def test_recv_loop_skips_request_after_connection_terminated_in_same_batch():
     """When ConnectionTerminated and a new RequestReceived arrive in
     the same frame batch, the recv loop must not spawn a worker for
