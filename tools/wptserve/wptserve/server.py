@@ -669,11 +669,8 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             )
             t.start()
 
-            while not self.close_connection:
-                try:
-                    frame = queue.get(True, 1)
-                except Empty:
-                    continue
+            while True:
+                frame = queue.get()
 
                 if isinstance(frame, DataReceived):
                     wfile.write(frame.data)
@@ -734,12 +731,8 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                 except OSError:
                     pass
 
-        while not self.close_connection:
-            try:
-                frame = queue.get(True, 1)
-            except Empty:
-                # Restart to check for close_connection
-                continue
+        while True:
+            frame = queue.get()
 
             self.logger.debug(f'({self.uid} - {stream_id}) {str(frame)}')
             if isinstance(frame, RequestReceived):
