@@ -494,8 +494,11 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             self.logger.warning("Connection reset during h2 setup")
             return
 
-        # Dict of { stream_id: (thread, queue) }
+        # Active streams: stream_id -> (thread, queue), used to route incoming frames.
         stream_queues = {}
+        # Workers we've signalled to exit but haven't joined yet. Pruned each iteration
+        # so a long-lived connection doesn't accumulate dead Thread objects.
+        pending_joins = []
 
         self.close_connection = False
         try:
@@ -535,8 +538,16 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                         stream_queues[frame.stream_id][1].put(frame)
 
                 for closed_id in set(stream_queues.keys()) - non_closed_streams:
-                    self.logger.debug(f'({self.uid}) Stream {closed_id} is closed, removing queue')
-                    del stream_queues[closed_id]
+                    self.logger.debug(f'({self.uid}) Stream {closed_id} is closed, signalling worker')
+                    thread, queue = stream_queues.pop(closed_id)
+                    # Drain frames that h2 has already accounted for at the connection
+                    # level (HPACK, flow control); processing them on a now-closed stream
+                    # is wasted work and will fail with StreamClosedError anyway.
+                    self._drain_queue(queue)
+                    queue.put(None)
+                    pending_joins.append(thread)
+
+                pending_joins = [t for t in pending_joins if t.is_alive()]
 
         except OSError as e:
             self.logger.error(f'({self.uid}) Closing Connection - \n{str(e)}')
@@ -549,9 +560,20 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         except Exception as e:
             self.logger.error(f'({self.uid}) Unexpected Error - \n{str(e)}')
         finally:
-            for stream_id, (thread, queue) in stream_queues.items():
+            for thread, queue in stream_queues.values():
+                self._drain_queue(queue)
                 queue.put(None)
+                pending_joins.append(thread)
+            for thread in pending_joins:
                 thread.join()
+
+    @staticmethod
+    def _drain_queue(queue):
+        while True:
+            try:
+                queue.get_nowait()
+            except Empty:
+                break
 
     def _is_extended_connect_frame(self, frame):
         if not isinstance(frame, RequestReceived):
