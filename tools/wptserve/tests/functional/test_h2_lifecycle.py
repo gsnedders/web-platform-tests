@@ -150,15 +150,6 @@ def test_invalid_extended_connect_emits_protocol_error_rst_stream(h2_server):
 # put on top, and the worker exited without ever invoking `handle_data`.
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "The recv loop's _drain_queue on closed streams wipes the worker's "
-        "queue before the worker reads it. When DATA + RST_STREAM arrive in "
-        "the same batch, handle_data is never called because RequestReceived "
-        "was already drained. This is fixed by removing the closed-id sweep."
-    ),
-)
 def test_handler_observes_data_in_same_batch_as_rst_stream(h2_server):
     received_chunks = []
     handle_data_seen = threading.Event()

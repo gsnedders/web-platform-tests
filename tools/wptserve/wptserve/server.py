@@ -16,12 +16,27 @@ import time
 import traceback
 import uuid
 from collections import OrderedDict
-from queue import Empty, Queue
+from queue import Queue
 from typing import Dict
 
 from h2.config import H2Configuration
 from h2.connection import H2Connection
-from h2.events import RequestReceived, ConnectionTerminated, DataReceived, StreamReset, StreamEnded
+from h2.events import (
+    AlternativeServiceAvailable,
+    ConnectionTerminated,
+    DataReceived,
+    PingAckReceived,
+    PingReceived,
+    PriorityUpdated,
+    RemoteSettingsChanged,
+    RequestReceived,
+    SettingsAcknowledged,
+    StreamEnded,
+    StreamReset,
+    TrailersReceived,
+    UnknownFrameReceived,
+    WindowUpdated,
+)
 from h2.exceptions import StreamClosedError, ProtocolError
 from h2.settings import SettingCodes
 from h2.utilities import extract_method_header
@@ -494,11 +509,9 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             self.logger.warning("Connection reset during h2 setup")
             return
 
-        # Active streams: stream_id -> (thread, queue), used to route incoming frames.
+        # Active streams: stream_id -> (thread, queue), used to route incoming
+        # frames. Entries are removed once the worker exits.
         stream_queues = {}
-        # Workers we've signalled to exit but haven't joined yet. Pruned each iteration
-        # so a long-lived connection doesn't accumulate dead Thread objects.
-        pending_joins = []
 
         self.close_connection = False
         try:
@@ -512,11 +525,6 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                 with self.conn as connection:
                     frames = connection.receive_data(data)
                     window_size = connection.remote_settings.initial_window_size
-                    non_closed_streams = {
-                        stream_id
-                        for stream_id, stream in connection.streams.items()
-                        if not stream.closed
-                    }
 
                 self.logger.debug('(%s) Frames Received: ' % self.uid + str(frames))
 
@@ -546,32 +554,54 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                         stream_queues[frame.stream_id] = (self.start_stream_thread(frame, queue), queue)
                         queue.put(frame)
 
-                    elif hasattr(frame, 'stream_id') and frame.stream_id != 0:
-                        # Other stream-scoped events (DataReceived, StreamReset,
-                        # StreamEnded, PriorityUpdated, WindowUpdated, etc.) are
-                        # routed to an existing worker if one is already running
-                        # for this stream. Frames for streams we never opened —
-                        # e.g. PRIORITY/WINDOW_UPDATE before any HEADERS, or
-                        # events arriving after a worker has already exited —
-                        # drop silently here. h2 has already done its
+                    elif isinstance(frame, (DataReceived, StreamEnded, StreamReset, TrailersReceived)):
+                        # Stream-scoped events that the worker acts on. Route
+                        # to an existing worker if one is running for this
+                        # stream. Events arriving for a stream that was never
+                        # opened, or whose worker has already been reaped,
+                        # drop silently — h2 has already done its
                         # connection-level bookkeeping (HPACK state, flow
-                        # control) inside connection.receive_data above; the
-                        # stream-scoped layer has nothing to do.
+                        # control) inside connection.receive_data above.
                         entry = stream_queues.get(frame.stream_id)
                         if entry is not None:
                             entry[1].put(frame)
 
-                for closed_id in set(stream_queues.keys()) - non_closed_streams:
-                    self.logger.debug(f'({self.uid}) Stream {closed_id} is closed, signalling worker')
-                    thread, queue = stream_queues.pop(closed_id)
-                    # Drain frames that h2 has already accounted for at the connection
-                    # level (HPACK, flow control); processing them on a now-closed stream
-                    # is wasted work and will fail with StreamClosedError anyway.
-                    self._drain_queue(queue)
-                    queue.put(None)
-                    pending_joins.append(thread)
+                    elif isinstance(frame, (
+                        PriorityUpdated,
+                        WindowUpdated,
+                        RemoteSettingsChanged,
+                        SettingsAcknowledged,
+                        PingReceived,
+                        PingAckReceived,
+                        AlternativeServiceAvailable,
+                        UnknownFrameReceived,
+                    )):
+                        # Connection-level / protocol-level events that h2 has
+                        # fully internalised by the time receive_data returns:
+                        # PRIORITY signalling is deprecated by RFC 9113;
+                        # WINDOW_UPDATE feeds h2's send-side flow control;
+                        # SETTINGS exchanges and PING ack/req are h2's job;
+                        # ALT-SVC and unknown extension frames are advisory.
+                        # Nothing for the per-request layer to do.
+                        pass
 
-                pending_joins = [t for t in pending_joins if t.is_alive()]
+                    else:
+                        assert False, (
+                            f"unexpected h2 event: {type(frame).__name__}"
+                        )
+
+                # Reap entries whose workers have exited. The worker drives its
+                # own lifecycle: it breaks on the typed terminator events
+                # (StreamReset, StreamEnded, ConnectionTerminated) it observes
+                # in its queue, or on a None sentinel from the finally block.
+                # Once it exits, drop the routing entry so subsequent frames
+                # for that stream (stale flow, misbehaving client) don't pile
+                # up in a queue with no consumer.
+                for stream_id in [
+                    sid for sid, (thread, _) in stream_queues.items()
+                    if not thread.is_alive()
+                ]:
+                    del stream_queues[stream_id]
 
         except OSError as e:
             self.logger.error(f'({self.uid}) Closing Connection - \n{str(e)}')
@@ -581,20 +611,16 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             self.logger.error(f'({self.uid}) Unexpected Error - \n{str(e)}')
         finally:
             self.close_connection = True
-            for thread, queue in stream_queues.values():
-                self._drain_queue(queue)
+            # Wake any workers still blocked in queue.get() (e.g. an idle
+            # request stream the client never finished) and join everything
+            # before returning so the H2 connection's resources don't outlive
+            # handle_one_request. Signal all workers before joining any so a
+            # worker waiting on the H2ConnectionGuard lock that another
+            # worker holds doesn't get joined first.
+            for _, queue in stream_queues.values():
                 queue.put(None)
-                pending_joins.append(thread)
-            for thread in pending_joins:
+            for thread, _ in stream_queues.values():
                 thread.join()
-
-    @staticmethod
-    def _drain_queue(queue):
-        while True:
-            try:
-                queue.get_nowait()
-            except Empty:
-                break
 
     def _is_extended_connect_frame(self, frame):
         if not isinstance(frame, RequestReceived):
