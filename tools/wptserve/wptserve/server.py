@@ -529,15 +529,37 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                         for stream_id, (thread, queue) in stream_queues.items():
                             queue.put(frame)
 
-                    elif hasattr(frame, 'stream_id') and frame.stream_id != 0:
-                        # Stream ID 0 is reserved for connection control messages (RFC 9113 § 5.1.1)
-                        # and is handled directly by h2, so we only create streams for stream IDs > 0
+                    elif isinstance(frame, RequestReceived):
+                        # Only RequestReceived can open a new stream-handling
+                        # worker — it represents a new request. h2 itself
+                        # rejects HEADERS that try to open an already-open
+                        # stream (raising ProtocolError out of receive_data
+                        # above), so we never see a second RequestReceived
+                        # for the same stream_id here. Spawn the worker, then
+                        # enqueue the frame on its queue.
                         if self.close_connection:
                             continue
-                        if frame.stream_id not in stream_queues:
-                            queue = Queue()
-                            stream_queues[frame.stream_id] = (self.start_stream_thread(frame, queue), queue)
-                        stream_queues[frame.stream_id][1].put(frame)
+                        assert frame.stream_id not in stream_queues, (
+                            f"second RequestReceived for stream {frame.stream_id}"
+                        )
+                        queue = Queue()
+                        stream_queues[frame.stream_id] = (self.start_stream_thread(frame, queue), queue)
+                        queue.put(frame)
+
+                    elif hasattr(frame, 'stream_id') and frame.stream_id != 0:
+                        # Other stream-scoped events (DataReceived, StreamReset,
+                        # StreamEnded, PriorityUpdated, WindowUpdated, etc.) are
+                        # routed to an existing worker if one is already running
+                        # for this stream. Frames for streams we never opened —
+                        # e.g. PRIORITY/WINDOW_UPDATE before any HEADERS, or
+                        # events arriving after a worker has already exited —
+                        # drop silently here. h2 has already done its
+                        # connection-level bookkeeping (HPACK state, flow
+                        # control) inside connection.receive_data above; the
+                        # stream-scoped layer has nothing to do.
+                        entry = stream_queues.get(frame.stream_id)
+                        if entry is not None:
+                            entry[1].put(frame)
 
                 for closed_id in set(stream_queues.keys()) - non_closed_streams:
                     self.logger.debug(f'({self.uid}) Stream {closed_id} is closed, signalling worker')
