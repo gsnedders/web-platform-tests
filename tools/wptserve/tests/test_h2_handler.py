@@ -181,3 +181,37 @@ def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
 
     for f in file_mocks:
         f.close.assert_called_once()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "_stream_ws_sub_thread catches only "
+        "(StreamClosedError, ProtocolError) around "
+        "dispatcher.transfer_data. Any other exception (a buggy ws "
+        "handler raising ValueError, an OSError from a torn socket, "
+        "etc.) escapes the sub-thread without putting None on the "
+        "queue. The parent _stream_ws_thread is then blocked on "
+        "queue.get() with no path to wake until the recv loop or the "
+        "connection-level finally signals — neither of which fires "
+        "promptly when the H2 stream itself is still half-open."
+    ),
+)
+def test_stream_ws_sub_thread_signals_queue_on_uncaught_exception():
+    handler = _bare_handler()
+
+    request = mock.MagicMock()
+    request._dispatcher.transfer_data.side_effect = RuntimeError("boom")
+
+    stream_handler = mock.MagicMock()
+    queue = Queue()
+
+    with pytest.raises(RuntimeError, match="boom"):
+        handler._stream_ws_sub_thread(request, stream_handler, queue)
+
+    assert not queue.empty(), (
+        "_stream_ws_sub_thread didn't enqueue a sentinel before dying; "
+        "the parent _stream_ws_thread will block forever on queue.get()."
+    )
+    assert queue.get_nowait() is None
