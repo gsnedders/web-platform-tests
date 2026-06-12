@@ -11,6 +11,7 @@ Functional / integration coverage of the same handler lives in
 """
 
 import socket
+from queue import Queue
 from unittest import mock
 
 import pytest
@@ -114,3 +115,69 @@ def test_handle_one_request_marks_connection_closed_on_initial_sendall_reset():
     # against that default being reverted; recv.assert_not_called() above
     # keeps the check tied to the reset scenario rather than a bare flag.
     assert handler.close_connection is True
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "_stream_thread wraps finish_handling in `except "
+        "(StreamClosedError, ProtocolError)` only. Any other exception "
+        "(OSError(EPIPE) from a sendall on a half-dead peer, a handler "
+        "bug surfacing as RuntimeError, etc.) escapes the worker past "
+        "the trailing cleanup() call, leaking the rfile/wfile pipe fds."
+    ),
+)
+def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
+    file_mocks = [mock.MagicMock(), mock.MagicMock()]
+
+    def fake_handler_copy(handler, req_frame, rfile):
+        h = mock.MagicMock()
+        # Plain object => hasattr(req_handler, 'frame_handler') is False
+        # and the frame_handler / handle_headers branches are skipped.
+        h.server.router.get_handler.return_value = object()
+        return h
+
+    handler = _bare_handler()
+    handler.uid = "test"
+    handler.close_connection = False
+    handler.finish_handling = mock.Mock(side_effect=RuntimeError("boom"))
+
+    # Use real h2 to produce the event sequence the worker would see
+    # in production for a single complete request: HEADERS(end_stream=
+    # True) on the wire yields [RequestReceived, StreamEnded] from
+    # receive_data(). The worker opens the pipes on RequestReceived
+    # and invokes finish_handling on StreamEnded.
+    capture = _H2EventCapture()
+    capture.send_headers(stream_id=1, end_stream=True)
+
+    queue = Queue()
+    for event in capture.events:
+        queue.put(event)
+
+    # autospec on os.fdopen catches signature drift in the patched call.
+    # The H2 wrapper classes don't expose the attributes we need to
+    # drive (`stream_handler.server.router.get_handler`) at the class
+    # level, so autospec there would leave us with a bare MagicMock
+    # anyway.
+    #
+    # os.pipe is also patched: otherwise _stream_thread opens a real pipe
+    # (server.py ~810) whose fds would never be closed — cleanup() closes the
+    # mocked fdopen file objects, not the underlying raw fds — leaking two fds
+    # per run. With os.pipe stubbed, no real fds are created.
+    with mock.patch.object(
+        server_module.os, "pipe", return_value=(-1, -1)
+    ), mock.patch.object(
+        server_module.os, "fdopen", autospec=True, side_effect=file_mocks
+    ), mock.patch.object(
+        server_module, "H2HandlerCopy", side_effect=fake_handler_copy
+    ), mock.patch.object(
+        server_module, "H2Request"
+    ), mock.patch.object(
+        server_module, "H2Response"
+    ):
+        with pytest.raises(RuntimeError, match="boom"):
+            handler._stream_thread(stream_id=1, queue=queue)
+
+    for f in file_mocks:
+        f.close.assert_called_once()
