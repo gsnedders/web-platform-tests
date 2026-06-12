@@ -716,18 +716,21 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             )
             t.start()
 
-            while True:
-                frame = queue.get()
-
-                if isinstance(frame, DataReceived):
-                    wfile.write(frame.data)
-                    if frame.stream_ended:
-                        raise NotImplementedError("frame.stream_ended")
-                elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
-                    self.logger.error(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
-                    break
+            self._stream_ws_pump_frames(stream_id, queue, wfile)
 
         t.join()
+
+    def _stream_ws_pump_frames(self, stream_id, queue, wfile):
+        while True:
+            frame = queue.get()
+
+            if isinstance(frame, DataReceived):
+                wfile.write(frame.data)
+                if frame.stream_ended:
+                    raise NotImplementedError("frame.stream_ended")
+            elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
+                self.logger.error(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
+                break
 
     def _stream_ws_sub_thread(self, request, stream_handler, queue):
         dispatcher = request._dispatcher
