@@ -703,22 +703,35 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
 
             request_wrapper._dispatcher = dispatcher
 
-            # we need two threads:
-            # - one to handle the frame queue
-            # - one to handle the request (dispatcher.transfer_data is blocking)
-            # the alternative is to have only one (blocking) thread. That thread
-            # will call transfer_data. That would require a special case in
-            # handle_one_request, to bypass the queue and write data to wfile
-            # directly.
+            # The H2 frame queue and the websocket session both need to run
+            # concurrently: dispatcher.transfer_data is blocking, and the
+            # frame queue must keep being drained so DataReceived frames
+            # reach the ws handler via the rfile/wfile pipe. Run the frame
+            # pump in a helper thread so this worker's lifetime tracks the
+            # ws session — the same shape as _stream_thread, where worker
+            # liveness is what drives stream_queues cleanup.
             t = threading.Thread(
-                target=Http2WebTestRequestHandler._stream_ws_sub_thread,
-                args=(self, request_wrapper, stream_handler, queue)
+                target=Http2WebTestRequestHandler._stream_ws_pump_frames,
+                args=(self, stream_id, queue, wfile),
             )
             t.start()
 
-            self._stream_ws_pump_frames(stream_id, queue, wfile)
-
-        t.join()
+            try:
+                dispatcher.transfer_data(request_wrapper)
+                with stream_handler.conn as connection:
+                    connection.end_stream(stream_handler.h2_stream_id)
+                    data = connection.data_to_send()
+                    stream_handler.request.sendall(data)
+            except (StreamClosedError, ProtocolError):
+                # work around https://github.com/web-platform-tests/wpt/issues/27786
+                # The stream may have already been closed.
+                pass
+            finally:
+                # Wake the helper if it is still blocked on queue.get(),
+                # then wait for it to drain before letting the with-block
+                # close wfile out from under it.
+                queue.put(None)
+                t.join()
 
     def _stream_ws_pump_frames(self, stream_id, queue, wfile):
         while True:
@@ -731,22 +744,6 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
             elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
                 self.logger.error(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
                 break
-
-    def _stream_ws_sub_thread(self, request, stream_handler, queue):
-        dispatcher = request._dispatcher
-        try:
-            dispatcher.transfer_data(request)
-            stream_id = stream_handler.h2_stream_id
-            with stream_handler.conn as connection:
-                connection.end_stream(stream_id)
-                data = connection.data_to_send()
-                stream_handler.request.sendall(data)
-        except (StreamClosedError, ProtocolError):
-            # work around https://github.com/web-platform-tests/wpt/issues/27786
-            # The stream may have already been closed.
-            pass
-        finally:
-            queue.put(None)
 
     def _stream_thread(self, stream_id, queue):
         """

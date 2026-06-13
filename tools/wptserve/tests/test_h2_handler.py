@@ -216,25 +216,6 @@ def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
         f.close.assert_called_once()
 
 
-def test_stream_ws_sub_thread_signals_queue_on_uncaught_exception():
-    handler = _bare_handler()
-
-    request = mock.MagicMock()
-    request._dispatcher.transfer_data.side_effect = RuntimeError("boom")
-
-    stream_handler = mock.MagicMock()
-    queue = Queue()
-
-    with pytest.raises(RuntimeError, match="boom"):
-        handler._stream_ws_sub_thread(request, stream_handler, queue)
-
-    assert not queue.empty(), (
-        "_stream_ws_sub_thread didn't enqueue a sentinel before dying; "
-        "the parent _stream_ws_thread will block forever on queue.get()."
-    )
-    assert queue.get_nowait() is None
-
-
 def test_recv_loop_skips_request_after_connection_terminated_in_same_batch():
     """When ConnectionTerminated and a new RequestReceived arrive in
     the same frame batch, the recv loop must not spawn a worker for
