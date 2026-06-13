@@ -734,16 +734,23 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                 t.join()
 
     def _stream_ws_pump_frames(self, stream_id, queue, wfile):
-        while True:
-            frame = queue.get()
+        try:
+            while True:
+                frame = queue.get()
 
-            if isinstance(frame, DataReceived):
-                wfile.write(frame.data)
-                if frame.stream_ended:
-                    raise NotImplementedError("frame.stream_ended")
-            elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
-                self.logger.error(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
-                break
+                if isinstance(frame, DataReceived):
+                    wfile.write(frame.data)
+                    if frame.stream_ended:
+                        break
+                elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
+                    self.logger.error(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
+                    break
+        finally:
+            # Closing wfile gives the ws handler's read on rfile an EOF,
+            # so dispatcher.transfer_data exits cleanly. We must do this
+            # on every exit path, otherwise the worker stays parked in
+            # transfer_data with no way for the rfile read to return.
+            wfile.close()
 
     def _stream_thread(self, stream_id, queue):
         """

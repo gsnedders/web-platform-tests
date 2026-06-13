@@ -323,16 +323,6 @@ def test_handle_one_request_marks_connection_closed_on_unexpected_exception():
     assert handler.close_connection is True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=NotImplementedError,
-    reason=(
-        "_stream_ws_pump_frames raises NotImplementedError on a "
-        "DataReceived with stream_ended=True. The fix is to close wfile "
-        "(so the ws handler's read on rfile sees EOF and transfer_data "
-        "exits cleanly) and break out of the loop."
-    ),
-)
 def test_stream_ws_pump_frames_closes_wfile_on_end_stream():
     handler = _bare_handler()
     handler.uid = "test"
