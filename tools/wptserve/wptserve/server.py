@@ -736,21 +736,17 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         dispatcher = request._dispatcher
         try:
             dispatcher.transfer_data(request)
-        except (StreamClosedError, ProtocolError):
-            # work around https://github.com/web-platform-tests/wpt/issues/27786
-            # The stream was already closed.
-            queue.put(None)
-            return
-
-        stream_id = stream_handler.h2_stream_id
-        with stream_handler.conn as connection:
-            try:
+            stream_id = stream_handler.h2_stream_id
+            with stream_handler.conn as connection:
                 connection.end_stream(stream_id)
                 data = connection.data_to_send()
                 stream_handler.request.sendall(data)
-            except (StreamClosedError, ProtocolError):  # maybe the stream has already been closed
-                pass
-        queue.put(None)
+        except (StreamClosedError, ProtocolError):
+            # work around https://github.com/web-platform-tests/wpt/issues/27786
+            # The stream may have already been closed.
+            pass
+        finally:
+            queue.put(None)
 
     def _stream_thread(self, stream_id, queue):
         """

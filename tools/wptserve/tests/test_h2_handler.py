@@ -216,21 +216,6 @@ def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
         f.close.assert_called_once()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "_stream_ws_sub_thread catches only "
-        "(StreamClosedError, ProtocolError) around "
-        "dispatcher.transfer_data. Any other exception (a buggy ws "
-        "handler raising ValueError, an OSError from a torn socket, "
-        "etc.) escapes the sub-thread without putting None on the "
-        "queue. The parent _stream_ws_thread is then blocked on "
-        "queue.get() with no path to wake until the recv loop or the "
-        "connection-level finally signals — neither of which fires "
-        "promptly when the H2 stream itself is still half-open."
-    ),
-)
 def test_stream_ws_sub_thread_signals_queue_on_uncaught_exception():
     handler = _bare_handler()
 
