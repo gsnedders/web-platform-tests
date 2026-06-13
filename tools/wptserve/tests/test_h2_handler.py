@@ -356,3 +356,36 @@ def test_handle_one_request_marks_connection_closed_on_unexpected_exception():
     # flag into `finally` flips it to PASS and the xfail marker is removed.
     assert handler.close_connection is True
 
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason=(
+        "_stream_ws_pump_frames raises NotImplementedError on a "
+        "DataReceived with stream_ended=True. The fix is to close wfile "
+        "(so the ws handler's read on rfile sees EOF and transfer_data "
+        "exits cleanly) and break out of the loop."
+    ),
+)
+def test_stream_ws_pump_frames_closes_wfile_on_end_stream():
+    handler = _bare_handler()
+    handler.uid = "test"
+
+    wfile = mock.MagicMock()
+
+    # Real h2 emits the full event sequence for HEADERS + DATA(end_
+    # stream=True). The pump only acts on DataReceived (and the
+    # terminator types), silently skipping anything else.
+    capture = _H2EventCapture()
+    capture.send_headers(stream_id=1)
+    capture.send_data(stream_id=1, data=b"hello", end_stream=True)
+
+    queue = Queue()
+    for event in capture.events:
+        queue.put(event)
+
+    handler._stream_ws_pump_frames(stream_id=1, queue=queue, wfile=wfile)
+
+    wfile.write.assert_called_once_with(b"hello")
+    wfile.close.assert_called_once()
+
