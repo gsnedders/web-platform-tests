@@ -8,6 +8,7 @@ not a mocked surface.
 
 import os
 import threading
+import time
 from unittest import mock
 
 import pytest
@@ -20,6 +21,7 @@ from h2.connection import H2Connection
 from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
 from h2.events import StreamReset
+from h2.events import DataReceived, StreamEnded
 
 from .base import doc_root
 from .h2_raw_client import H2RawClient
@@ -231,4 +233,93 @@ def test_handler_observes_data_in_same_batch_as_rst_stream(h2_server):
         "frames may have been split across TCP reads so the batch-coalescing "
         "code path was never exercised. "
         f"Batches seen: {[[type(e).__name__ for e in b] for b in batch_events]}"
+    )
+
+
+# -- Inbound flow control credit return --------------------------------------
+#
+# h2 decrements the inbound stream / connection windows as DATA frames
+# arrive. WINDOW_UPDATE frames are only sent when the receiver calls
+# acknowledge_received_data() or increment_flow_control_window() on the
+# h2 connection. wptserve does neither: it consumes the bytes (the
+# handler runs against `request.body`) but never credits them back.
+#
+# RFC 9113 §6.9.1 describes credit return as the normal consequence of
+# consuming data ("sends a WINDOW_UPDATE frame as it consumes data and
+# frees up space in flow-control windows"). §5.2.1 leaves the exact
+# algorithm to the receiver, but §5.2.2 requires endpoints to "read
+# and process HTTP/2 frames from the TCP receive buffer as soon as
+# data is available." A receiver that consumes the data — and thus
+# satisfies §5.2.2 — without ever crediting it stalls any sender with
+# more than 65,535 bytes to deliver on a single stream, even though
+# the request is well-formed and the handler has completed.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "wptserve consumes inbound DATA (the handler reads the body) "
+        "but never returns flow-control credit on H2 streams. A POST "
+        "body larger than the 65,535-byte initial window stalls "
+        "mid-send because no WINDOW_UPDATE arrives — even though the "
+        "spec model (RFC 9113 §6.9.1) assumes credit follows "
+        "consumption."
+    ),
+)
+def test_large_post_body_returns_flow_control_credit(h2_server):
+    @wptserve.handlers.handler
+    def echo_size(request, response):
+        response.content = str(len(request.body)).encode("ascii")
+
+    h2_server.router.register("POST", "/echo-size", echo_size)
+
+    body = b"x" * 100_000  # well past the 65,535-byte initial window
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "POST"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/echo-size"),
+                ("content-length", str(len(body))),
+            ],
+            end_stream=False,
+        )
+        # Send the body in chunks, respecting send-side flow control.
+        # local_flow_control_window tracks how many bytes h2 will let us
+        # send before needing a WINDOW_UPDATE from the peer. The deadline
+        # is tight: the stall is deterministic — once the window is at 0
+        # with no WINDOW_UPDATE in flight, none is coming.
+        sent = 0
+        deadline = time.monotonic() + 2.0
+        while sent < len(body):
+            if time.monotonic() > deadline:
+                pytest.fail(
+                    f"Sending body timed out after {sent}/{len(body)} "
+                    "bytes — server didn't return flow-control credit"
+                )
+            client.send_outbound()
+            client.drain_events(total_timeout=0.2)  # absorb WINDOW_UPDATE
+            available = client.conn.local_flow_control_window(stream_id=1)
+            if available == 0:
+                continue
+            chunk = body[sent:sent + min(available, 16384)]
+            client.conn.send_data(stream_id=1, data=chunk)
+            sent += len(chunk)
+        client.conn.send_data(stream_id=1, data=b"", end_stream=True)
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+            total_timeout=2.0,
+        )
+
+    body_chunks = [
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    ]
+    assert b"".join(body_chunks) == str(len(body)).encode("ascii"), (
+        f"Server didn't echo the expected body size. Got: "
+        f"{b''.join(body_chunks)!r}"
     )
