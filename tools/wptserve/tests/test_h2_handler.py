@@ -119,6 +119,39 @@ def test_handle_one_request_marks_connection_closed_on_initial_sendall_reset():
 
 @pytest.mark.xfail(
     strict=True,
+    reason=(
+        "The initial sendall (handle_one_request line ~506) only "
+        "catches ConnectionResetError. BrokenPipeError and "
+        "ConnectionAbortedError are sibling OSError subclasses, both "
+        "easy to provoke (peer closed before we wrote, peer aborted "
+        "mid-handshake) — they escape handle_one_request as a "
+        "traceback instead of returning cleanly before the recv loop. "
+        "The recv-loop catchall at line ~613 doesn't cover "
+        "this path because the sendall happens before the loop opens."
+    ),
+)
+@pytest.mark.parametrize(
+    "exc",
+    [BrokenPipeError(), ConnectionAbortedError()],
+    ids=["BrokenPipeError", "ConnectionAbortedError"],
+)
+def test_handle_one_request_marks_connection_closed_on_initial_sendall_oserror(exc):
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+    handler.request.sendall.side_effect = exc
+
+    handler.handle_one_request()
+
+    # The OSError branch should return before entering the recv loop.
+    # If the fix were applied, recv would not be called — the method returns
+    # early at the sendall site, exactly like the ConnectionResetError case.
+    # Today these sibling OSErrors escape instead (the xfail), so this
+    # assertion would only be reached if the fix were also applied.
+    handler.request.recv.assert_not_called()
+
+
+@pytest.mark.xfail(
+    strict=True,
     raises=AssertionError,
     reason=(
         "_stream_thread wraps finish_handling in `except "
