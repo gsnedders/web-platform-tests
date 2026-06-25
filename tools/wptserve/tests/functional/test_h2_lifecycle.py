@@ -22,6 +22,7 @@ from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
+from h2.settings import SettingCodes
 from hyperframe.frame import GoAwayFrame
 
 from .base import doc_root
@@ -477,4 +478,75 @@ def test_small_post_body_reaches_handler(h2_server):
         f"Server didn't echo the expected body size. Got: "
         f"{b''.join(body_chunks)!r} (events: "
         f"{[type(e).__name__ for e in events]})"
+    )
+
+
+# -- recv(0) collapses connection on legal INITIAL_WINDOW_SIZE=0 -------------
+#
+# handle_one_request uses `connection.remote_settings.initial_window_size`
+# as the `socket.recv(...)` buffer size — which conflates the per-stream
+# send flow-control window (an h2-level concept) with the TCP read
+# buffer size. RFC 9113 §6.5.2 allows INITIAL_WINDOW_SIZE in [0, 2^31-1];
+# zero is a legitimate value (a receiver may want to gate all DATA on
+# explicit WINDOW_UPDATEs). When the client advertises zero, the next
+# recv call becomes `recv(0)`, which returns b'' immediately on both
+# plain and TLS sockets. The loop reads that as EOF and tears down a
+# perfectly healthy connection, even though the client never closed
+# anything.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "handle_one_request passes remote_settings.initial_window_size "
+        "to socket.recv() as the buffer size. A client that legally "
+        "advertises INITIAL_WINDOW_SIZE=0 (RFC 9113 §6.5.2) causes the "
+        "next recv(0) to return b'', which the loop misreads as EOF "
+        "and closes the connection."
+    ),
+)
+def test_zero_initial_window_size_does_not_collapse_connection(h2_server):
+    @wptserve.handlers.handler
+    def hello(request, response):
+        response.content = b"hello"
+
+    h2_server.router.register("GET", "/hello-zero-window", hello)
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # Send a SETTINGS frame that lowers INITIAL_WINDOW_SIZE to 0.
+        # h2 prepares the frame; send_outbound() flushes it on the wire.
+        client.conn.update_settings({
+            SettingCodes.INITIAL_WINDOW_SIZE: 0,
+        })
+        client.send_outbound()
+
+        # h2 doesn't apply the new window to peer's send-side until the
+        # server acks, but the server's recv() buffer size is read off
+        # remote_settings as soon as the frame is processed — that's
+        # the path under test.
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "GET"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/hello-zero-window"),
+            ],
+            end_stream=True,
+        )
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+            total_timeout=3.0,
+        )
+
+    body = b"".join(
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    )
+    assert body == b"hello", (
+        f"Server tore down the connection on a legal SETTINGS frame "
+        f"(INITIAL_WINDOW_SIZE=0). Events: "
+        f"{[type(e).__name__ for e in events]}"
     )
