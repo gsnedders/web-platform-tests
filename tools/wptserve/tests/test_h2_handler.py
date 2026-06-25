@@ -215,3 +215,41 @@ def test_stream_ws_sub_thread_signals_queue_on_uncaught_exception():
         "the parent _stream_ws_thread will block forever on queue.get()."
     )
     assert queue.get_nowait() is None
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "The RequestReceived branch lacks the `if self.close_connection: "
+        "continue` guard that prevents spawning a worker thread after "
+        "ConnectionTerminated has been processed. The guard must be added "
+        "so the recv loop skips late requests that arrive in the same "
+        "frame batch."
+    ),
+)
+def test_recv_loop_skips_request_after_connection_terminated_in_same_batch():
+    """When ConnectionTerminated and a new RequestReceived arrive in
+    the same frame batch, the recv loop must not spawn a worker for
+    the late RequestReceived. ConnectionTerminated sets
+    close_connection True; the RequestReceived branch's
+    `if self.close_connection: continue` guard then bails. Previously
+    the guard was missing and the loop fell through, spawning a worker
+    thread that immediately had to be drained and joined in finally.
+    """
+    conn_term = mock.MagicMock(spec=server_module.ConnectionTerminated)
+    req_frame = mock.MagicMock(spec=server_module.RequestReceived)
+    req_frame.stream_id = 3
+
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+    handler.request.recv.return_value = b"some-frame-bytes"
+    handler.start_stream_thread = mock.MagicMock(name="start_stream_thread")
+
+    with mock.patch.object(
+        H2Connection,
+        "receive_data",
+        autospec=True,
+        return_value=[conn_term, req_frame],
+    ):
+        handler.handle_one_request()
+
+    handler.start_stream_thread.assert_not_called()
