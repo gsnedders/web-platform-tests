@@ -813,29 +813,43 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                     if hasattr(req_handler, 'handle_headers'):
                         req_handler.handle_headers(frame, request, response)
 
+                    request.frames.append(frame)
+
                 elif isinstance(frame, DataReceived):
                     wfile.write(frame.data)
 
                     if hasattr(req_handler, 'handle_data'):
                         req_handler.handle_data(frame, request, response)
 
-                elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
-                    self.logger.debug(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
-                    break
-
-                if request is not None:
                     request.frames.append(frame)
 
-                if getattr(frame, "stream_ended", False):
+                elif isinstance(frame, TrailersReceived):
+                    request.frames.append(frame)
+
+                elif isinstance(frame, StreamEnded):
+                    # Client has finished sending; finalize the response.
                     try:
                         self.finish_handling(request, response, req_handler)
                     except (StreamClosedError, ProtocolError):
-                        # The stream or connection was closed before we could
-                        # finish writing the response.
+                        # The stream or connection was closed before we
+                        # could finish writing the response.
                         self.logger.debug(
-                            '(%s - %s) Unable to write response; stream or '
-                            'connection closed' % (self.uid, stream_id))
+                            '(%s - %s) Unable to write response; stream '
+                            'or connection closed' % (self.uid, stream_id))
                     break
+
+                elif frame is None or isinstance(frame, (StreamReset, ConnectionTerminated)):
+                    # Abort path: client RST'd, server tore down the
+                    # connection (GOAWAY/None sentinel). Skip
+                    # finish_handling — there's no response to send.
+                    self.logger.debug(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
+                    break
+
+                else:
+                    assert False, (
+                        f"unexpected h2 event on stream queue: "
+                        f"{type(frame).__name__}"
+                    )
         finally:
             # cleanup() closes the rfile/wfile pipe fds. Run it on every
             # exit path — including unhandled exceptions from
