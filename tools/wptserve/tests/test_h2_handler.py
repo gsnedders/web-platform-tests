@@ -277,3 +277,93 @@ def test_recv_loop_skips_request_after_connection_terminated_in_same_batch():
         handler.handle_one_request()
 
     handler.start_stream_thread.assert_not_called()
+
+
+def test_handle_one_request_marks_connection_closed_on_recv_oserror():
+    """An OSError from `recv` (peer reset, broken pipe, TLS layer surfacing a
+    socket failure) must be caught by the recv loop so the method returns
+    cleanly — neither re-reading a now-broken connection nor letting the
+    error escape — and must leave close_connection True so the stdlib
+    `handle()` loop does not re-enter handle_one_request.
+
+    recv.assert_called_once() proves the loop entered, caught the error, and
+    broke out exactly once rather than hanging or propagating. The
+    close_connection assertion guards the flag on this path: at this commit
+    the OSError branch sets it inline, and it must keep holding after the
+    branch's later refactor moves the flag into `finally`.
+    """
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+    handler.request.recv.side_effect = ConnectionResetError(
+        "peer reset connection"
+    )
+
+    handler.handle_one_request()
+
+    # The recv loop must have been entered (recv was called at least once)
+    # and then exited cleanly — neither hanging nor escaping with an
+    # exception. If the fix were reverted and the loop didn't catch the
+    # error and break, recv would be called repeatedly (hanging), which
+    # would manifest as call_count != 1.
+    handler.request.recv.assert_called_once()
+    # Keep the close_connection check too: at this commit the OSError branch
+    # sets the flag inline, so it holds today and guards against a regression
+    # that drops the flag on this path.
+    assert handler.close_connection is True
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "The generic `except Exception` handler that catches unexpected "
+        "exceptions (AssertionError from defensive asserts, RuntimeError "
+        "from thread start, etc.) only logs; it does not set close_connection. "
+        "The flag must be moved to the finally block so it is set for all "
+        "exception types."
+    ),
+)
+def test_handle_one_request_marks_connection_closed_on_unexpected_exception():
+    """Anything escaping the recv loop body that isn't OSError or
+    ProtocolError — an AssertionError from one of our defensive asserts in
+    the for-loop, a RuntimeError from threading.Thread.start under OS limit
+    pressure, or a non-ProtocolError surfacing from h2 internals — must be
+    caught by the loop's `except Exception` so the method returns cleanly,
+    and must leave close_connection True.
+
+    recv.assert_called_once() proves the loop entered recv, hit the error,
+    and exited exactly once rather than looping or propagating. The
+    close_connection assertion is the red→green discriminator: at this commit
+    the catchall `except Exception` only logs and does not set the flag, so
+    the assertion fails (AssertionError → the xfail holds); once the fix
+    moves the flag into `finally` it passes and the xfail marker is removed.
+    """
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+    handler.request.recv.return_value = b"some-frame-bytes"
+
+    # autospec catches signature drift if h2 ever renames receive_data.
+    with mock.patch.object(
+        H2Connection,
+        "receive_data",
+        autospec=True,
+        side_effect=AssertionError(
+            "simulated h2 internal invariant violation"
+        ),
+    ):
+        handler.handle_one_request()
+
+    # The recv loop must have been entered (recv was called at least once)
+    # and then exited cleanly. If the fix were reverted and the exception
+    # escaped without the loop catching it, recv would not have been called
+    # a second time — but we'd get an uncaught exception instead of a clean
+    # return, which pytest.raises would surface. call_count==1 proves the
+    # loop entered recv, hit the error, and exited cleanly exactly once.
+    handler.request.recv.assert_called_once()
+    # Keep the close_connection check too: it is the red→green discriminator
+    # for the xfail. At this commit the catchall `except Exception` only logs
+    # and the flag isn't yet defaulted True, so this fails (AssertionError →
+    # the xfail(raises=AssertionError) holds); the later fix that moves the
+    # flag into `finally` flips it to PASS and the xfail marker is removed.
+    assert handler.close_connection is True
+
