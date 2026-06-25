@@ -7,6 +7,8 @@ not a mocked surface.
 """
 
 import os
+import threading
+from unittest import mock
 
 import pytest
 
@@ -14,6 +16,7 @@ import localpaths  # noqa: F401  # populates sys.path
 
 import wptserve.server
 import wptserve.utils
+from h2.connection import H2Connection
 from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
 from h2.events import StreamReset
@@ -119,4 +122,113 @@ def test_invalid_extended_connect_emits_protocol_error_rst_stream(h2_server):
     assert resets[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
         f"Expected RST_STREAM(PROTOCOL_ERROR), got "
         f"{resets[0].error_code}"
+    )
+    terminations = [e for e in events if isinstance(e, ConnectionTerminated)]
+    # GOAWAY is preferred but server may also just close. If GOAWAY is
+    # sent, it must carry PROTOCOL_ERROR.
+    if terminations:
+        assert terminations[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
+            f"Expected PROTOCOL_ERROR GOAWAY, got "
+            f"{terminations[0].error_code}"
+        )
+
+
+# -- DATA + RST_STREAM in one frame batch ------------------------------------
+#
+# When the client sends HEADERS + DATA + RST_STREAM in a single TCP write,
+# h2 emits [RequestReceived, DataReceived, StreamReset] from one
+# receive_data() call. The recv loop must deliver all three events to the
+# stream worker in order. The previous implementation drove cleanup off
+# h2's private `streams` dict and ran a `_drain_queue` on any stream that
+# h2 considered closed at the end of the batch — which is exactly what
+# RST_STREAM produces. The drain wiped the worker's queue (RequestReceived
+# included) before the worker had read anything, then a None sentinel was
+# put on top, and the worker exited without ever invoking `handle_data`.
+
+
+def test_handler_observes_data_in_same_batch_as_rst_stream(h2_server):
+    received_chunks = []
+    handle_data_seen = threading.Event()
+
+    class RecordingHandler:
+        # `handle_data` is called by _stream_thread for each DataReceived
+        # the worker dequeues. `__call__` is the regular handler entry
+        # point, invoked from finish_handling — it never runs here because
+        # RST_STREAM aborts the worker before stream_ended fires.
+
+        def handle_data(self, frame, request, response):
+            received_chunks.append(frame.data)
+            handle_data_seen.set()
+
+        def __call__(self, request, response):
+            pass
+
+    h2_server.router.register("POST", "/record-body", RecordingHandler())
+
+    # Capture every receive_data call's return value to assert that all
+    # three events arrived in a single batch. If TCP chunking split the
+    # frames across recv calls, the regression (the closed-id sweep
+    # removed in commit e378c813db) wouldn't trigger and this test would
+    # silently pass for the wrong reason.
+    batch_events = []
+
+    # Capture the unbound method before patching. Inside the wrapper,
+    # `H2Connection.receive_data` would resolve to the mock installed
+    # below, so calling it there recurses until the stack blows. Binding
+    # the original now gives a stable handle to the real implementation.
+    original_receive_data = H2Connection.receive_data
+
+    def recording_receive_data(self_conn, data):
+        events = original_receive_data(self_conn, data)
+        batch_events.append(events)
+        return events
+
+    with mock.patch.object(
+        H2Connection,
+        "receive_data",
+        autospec=True,
+        side_effect=recording_receive_data,
+    ):
+        with H2RawClient(h2_server.host, h2_server.port) as client:
+            client.conn.send_headers(
+                stream_id=1,
+                headers=[
+                    (":method", "POST"),
+                    (":scheme", "https"),
+                    (":authority", f"{client.host}:{client.port}"),
+                    (":path", "/record-body"),
+                ],
+                end_stream=False,
+            )
+            client.conn.send_data(stream_id=1, data=b"body-bytes", end_stream=False)
+            client.conn.reset_stream(stream_id=1)
+            client.send_outbound()
+
+            # No response will come back — RST aborts the stream — so we
+            # block on the side-channel signal instead. If the bug regresses,
+            # `handle_data` is never called and the wait times out.
+            assert handle_data_seen.wait(timeout=5.0), (
+                "handle_data was never invoked; the recv loop may be draining "
+                "the worker's queue before it reads (regression of the closed-"
+                "id sweep that this branch removed)."
+            )
+
+    assert received_chunks == [b"body-bytes"], (
+        f"Expected [b'body-bytes'], got {received_chunks}"
+    )
+
+    # Assert that at least one receive_data call on the *server* side returned
+    # a batch with 3+ events including a StreamReset. This confirms HEADERS,
+    # DATA, and RST_STREAM arrived in one TCP read — the condition the
+    # regression depends on. If they were split across reads, no single batch
+    # would have 3 events and the test would miss the intended code path.
+    rich_batches = [
+        evts for evts in batch_events
+        if len(evts) >= 3 and any(isinstance(e, StreamReset) for e in evts)
+    ]
+    assert rich_batches, (
+        "No single receive_data call returned >=3 events with a StreamReset; "
+        "frames may have been split across TCP reads so the batch-coalescing "
+        "code path was never exercised. "
+        f"Batches seen: {[[type(e).__name__ for e in b] for b in batch_events]}"
     )
