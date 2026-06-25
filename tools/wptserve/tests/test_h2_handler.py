@@ -96,17 +96,6 @@ class _H2EventCapture:
         self._pump_client_to_server()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "ConnectionResetError raised by the initial sendall returns "
-        "from handle_one_request before reaching the try/finally that "
-        "sets close_connection=True. The stdlib handle() loop's "
-        "`while not self.close_connection: self.handle_one_request()` "
-        "then re-enters handle_one_request on the now-broken socket."
-    ),
-)
 def test_handle_one_request_marks_connection_closed_on_initial_sendall_reset():
     handler = _bare_handler()
     handler.request = mock.Mock(spec_set=socket.socket)

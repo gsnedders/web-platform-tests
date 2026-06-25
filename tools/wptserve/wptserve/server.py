@@ -461,7 +461,14 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
 
         config = H2Configuration(client_side=False)
         self.conn = H2ConnectionGuard(H2Connection(config=config))
-        self.close_connection = False
+        # For HTTP/2 the entire connection's lifetime is one
+        # handle_one_request call: every path out of this method leaves
+        # the connection in a state the stdlib handle() loop can't
+        # reuse. Default the flag True so early returns (e.g. the
+        # initial-sendall ConnectionResetError below) leave the right
+        # state without having to be careful at each return point;
+        # flip to False just before entering the recv loop.
+        self.close_connection = True
 
         # Generate a UUID to make it easier to distinguish different H2 connection debug messages
         self.uid = str(uuid.uuid4())[:8]
@@ -490,6 +497,7 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         # Dict of { stream_id: (thread, queue) }
         stream_queues = {}
 
+        self.close_connection = False
         try:
             while not self.close_connection:
                 data = self.request.recv(window_size)
