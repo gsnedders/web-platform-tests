@@ -479,10 +479,9 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         # For HTTP/2 the entire connection's lifetime is one
         # handle_one_request call: every path out of this method leaves
         # the connection in a state the stdlib handle() loop can't
-        # reuse. Default the flag True so early returns (e.g. the
-        # initial-sendall ConnectionResetError below) leave the right
-        # state without having to be careful at each return point;
-        # flip to False just before entering the recv loop.
+        # reuse. Hold the flag True for the whole call so early returns
+        # leave the right state without having to be careful at each
+        # exit point, and so the recv loop doesn't have to track it.
         self.close_connection = True
 
         # Generate a UUID to make it easier to distinguish different H2 connection debug messages
@@ -513,14 +512,12 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         # frames. Entries are removed once the worker exits.
         stream_queues = {}
 
-        self.close_connection = False
         try:
-            while not self.close_connection:
+            while True:
                 data = self.request.recv(window_size)
                 if data == b'':
                     self.logger.debug('(%s) Socket Closed' % self.uid)
-                    self.close_connection = True
-                    continue
+                    break
 
                 with self.conn as connection:
                     frames = connection.receive_data(data)
@@ -528,10 +525,17 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
 
                 self.logger.debug('(%s) Frames Received: ' % self.uid + str(frames))
 
+                # Per-batch flag: True once a ConnectionTerminated event
+                # is seen in this batch. Used to skip spawning workers
+                # for RequestReceived events that arrived in the same
+                # batch as the GOAWAY, and to break out after the batch
+                # is fully drained.
+                terminated = False
+
                 for frame in frames:
                     if isinstance(frame, ConnectionTerminated):
                         self.logger.debug('(%s) Connection terminated by remote peer ' % self.uid)
-                        self.close_connection = True
+                        terminated = True
 
                         # Flood all the streams with connection terminated, this will cause them to stop
                         for stream_id, (thread, queue) in stream_queues.items():
@@ -545,7 +549,7 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                         # above), so we never see a second RequestReceived
                         # for the same stream_id here. Spawn the worker, then
                         # enqueue the frame on its queue.
-                        if self.close_connection:
+                        if terminated:
                             continue
                         assert frame.stream_id not in stream_queues, (
                             f"second RequestReceived for stream {frame.stream_id}"
@@ -590,6 +594,9 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                             f"unexpected h2 event: {type(frame).__name__}"
                         )
 
+                if terminated:
+                    break
+
                 # Reap entries whose workers have exited. The worker drives its
                 # own lifecycle: it breaks on the typed terminator events
                 # (StreamReset, StreamEnded, ConnectionTerminated) it observes
@@ -610,7 +617,6 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
         except Exception as e:
             self.logger.error(f'({self.uid}) Unexpected Error - \n{str(e)}')
         finally:
-            self.close_connection = True
             # Wake any workers still blocked in queue.get() (e.g. an idle
             # request stream the client never finished) and join everything
             # before returning so the H2 connection's resources don't outlive
