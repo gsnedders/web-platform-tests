@@ -410,3 +410,71 @@ def test_inflight_request_completes_after_client_goaway(h2_server):
         f"§6.8 it should complete. Got events: "
         f"{[type(e).__name__ for e in events]}"
     )
+
+
+# -- Small POST body lost in buffered pipe -----------------------------------
+#
+# _stream_thread opens its DATA-forwarding pipe with the binary mode
+# default buffer (`os.fdopen(pipe_wfile, 'wb')`, no buffering arg). The
+# DataReceived branch does `wfile.write(frame.data)` but never flushes;
+# `finish_handling` then runs while the bytes are still parked in the
+# `BufferedWriter`. When the handler reads `request.body`, it gets
+# whatever has reached the pipe — for any body smaller than the writer
+# buffer (io.DEFAULT_BUFFER_SIZE, 8 KiB) that's zero bytes. The wfile
+# is only closed (which flushes) by `cleanup()` in the finally, which
+# doesn't run until after finish_handling has returned.
+#
+# The websocket sibling (`_stream_ws_thread`) opens its wfile with
+# `os.fdopen(wfile, 'wb', 0)` — unbuffered — so this bug is specific to
+# the regular request path.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "_stream_thread's wfile is buffered (no explicit buffering=0 "
+        "arg on os.fdopen). For a POST body smaller than the buffer, "
+        "the bytes never reach the rfile pipe before finish_handling "
+        "runs, so the handler sees request.body as empty."
+    ),
+)
+def test_small_post_body_reaches_handler(h2_server):
+    @wptserve.handlers.handler
+    def echo_size(request, response):
+        response.content = str(len(request.body)).encode("ascii")
+
+    h2_server.router.register("POST", "/echo-size-small", echo_size)
+
+    # Well under both io.DEFAULT_BUFFER_SIZE (8 KiB) and the 65,535-byte
+    # initial flow-control window: this body fits in one DATA frame and
+    # in the buffered writer.
+    body = b"hello-small-body"
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "POST"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/echo-size-small"),
+                ("content-length", str(len(body))),
+            ],
+            end_stream=False,
+        )
+        client.conn.send_data(stream_id=1, data=body, end_stream=True)
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+            total_timeout=3.0,
+        )
+
+    body_chunks = [
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    ]
+    assert b"".join(body_chunks) == str(len(body)).encode("ascii"), (
+        f"Server didn't echo the expected body size. Got: "
+        f"{b''.join(body_chunks)!r} (events: "
+        f"{[type(e).__name__ for e in events]})"
+    )
