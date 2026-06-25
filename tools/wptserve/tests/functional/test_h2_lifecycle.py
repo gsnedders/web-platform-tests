@@ -22,6 +22,7 @@ from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
+from hyperframe.frame import GoAwayFrame
 
 from .base import doc_root
 from .h2_raw_client import H2RawClient
@@ -322,4 +323,90 @@ def test_large_post_body_returns_flow_control_credit(h2_server):
     assert b"".join(body_chunks) == str(len(body)).encode("ascii"), (
         f"Server didn't echo the expected body size. Got: "
         f"{b''.join(body_chunks)!r}"
+    )
+
+
+# -- GOAWAY graceful completion of in-flight requests ------------------------
+#
+# RFC 9113 §6.8 *permits* — but does not require — a GOAWAY receiver
+# to keep processing streams numbered ≤ last_stream_id to completion:
+# "Activity on streams numbered lower than or equal to the last stream
+# identifier might still complete successfully." The "might" is
+# deliberate; the spec only forbids opening *new* streams after a peer
+# GOAWAY and mandates minimal frame processing for compression /
+# flow-control accounting. Aborting in-flight streams is permitted.
+#
+# Even so, today's recv loop forecloses the graceful path entirely:
+# on ConnectionTerminated it sets `terminated = True` and floods every
+# in-flight stream's queue with the terminator. The workers break on
+# it before the stream's remaining DATA/StreamEnded arrive, so no
+# response goes out for an in-flight request whose client has signalled
+# last_stream_id ≥ that stream — even though the client explicitly
+# invited completion.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "When the server receives GOAWAY mid-stream, the recv loop "
+        "floods every in-flight stream's queue with the "
+        "ConnectionTerminated event. Workers break on the terminator "
+        "before their stream's remaining DATA/StreamEnded can be "
+        "processed, so in-flight responses are dropped. RFC 9113 §6.8 "
+        "permits — but doesn't require — completing streams ≤ "
+        "last_stream_id; this code path forecloses that option even "
+        "when the client has explicitly signalled it would like the "
+        "in-flight stream to finish."
+    ),
+)
+def test_inflight_request_completes_after_client_goaway(h2_server):
+    @wptserve.handlers.handler
+    def echo_body(request, response):
+        response.content = b"got: " + (request.body or b"")
+
+    h2_server.router.register("POST", "/echo", echo_body)
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "POST"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/echo"),
+            ],
+            end_stream=False,
+        )
+        client.send_outbound()
+        # Client decides to close, but still finishes its in-flight
+        # stream. Per RFC 9113 §6.8, stream 1 (≤ last_stream_id) "might
+        # still complete successfully" — the server should send the
+        # response before tearing down.
+        #
+        # Send the GOAWAY at the byte level rather than through h2's
+        # client state machine: calling `client.conn.close_connection`
+        # would transition the local connection to CLOSED and make h2
+        # refuse the subsequent `send_data` we still need to issue.
+        goaway = GoAwayFrame(
+            stream_id=0,
+            last_stream_id=1,
+            error_code=ErrorCodes.NO_ERROR,
+        )
+        client.send_raw(goaway.serialize())
+        client.conn.send_data(stream_id=1, data=b"hello", end_stream=True)
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+            total_timeout=3.0,
+        )
+
+    body = b"".join(
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    )
+    assert b"got: hello" in body, (
+        f"Stream 1 was in-flight when GOAWAY arrived; per RFC 9113 "
+        f"§6.8 it should complete. Got events: "
+        f"{[type(e).__name__ for e in events]}"
     )
