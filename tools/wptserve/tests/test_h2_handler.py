@@ -345,3 +345,73 @@ def test_stream_ws_pump_frames_closes_wfile_on_end_stream():
     wfile.write.assert_called_once_with(b"hello")
     wfile.close.assert_called_once()
 
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "_stream_ws_pump_frames consumes DataReceived frames and writes "
+        "them to the pipe but never returns flow-control credit. Crediting "
+        "timing is implementation-defined (RFC 9113 §5.2.1) and §5.2.2's "
+        "read-promptly MUST is satisfied; §6.9.1 only describes credit "
+        "following consumption. ws-over-h2 streams (RFC 8441) are long-lived "
+        "and unbounded, so consuming DATA without ever crediting drains the "
+        "connection-level inbound window to 0 and wedges every stream on the "
+        "connection — an interop/quality gap, not a normative violation."
+    ),
+)
+def test_stream_ws_pump_frames_returns_flow_control_credit():
+    handler = _bare_handler()
+    handler.uid = "test"
+
+    wfile = mock.MagicMock()
+
+    # Drive a server-side H2Connection through real events so the
+    # inbound flow-control state matches what the pump would see in
+    # production. Wrap it in H2ConnectionGuard exactly like
+    # handle_one_request does at line ~478.
+    capture = _H2EventCapture()
+    capture.send_headers(stream_id=1)
+    capture.send_data(stream_id=1, data=b"x" * 1000, end_stream=False)
+    # A terminator so the pump returns; no end_stream on the data, just
+    # a None sentinel, mirrors the connection-teardown shape.
+    capture.events.append(None)
+
+    handler.conn = server_module.H2ConnectionGuard(capture.server)
+
+    # The capture's startup handshake has already drained outbound
+    # data; reset so we can tell whether the pump produces fresh
+    # WINDOW_UPDATE bytes.
+    capture.server.data_to_send()
+
+    queue = Queue()
+    for event in capture.events:
+        queue.put(event)
+
+    handler._stream_ws_pump_frames(stream_id=1, queue=queue, wfile=wfile)
+
+    # If the pump returns credit, h2 will have queued at least one
+    # WINDOW_UPDATE frame for the bytes consumed.
+    outbound = bytes(capture.server.data_to_send())
+    assert _contains_window_update(outbound), (
+        "Pump consumed DATA but emitted no WINDOW_UPDATE — the "
+        "connection-level inbound window will eventually drain to 0 "
+        "and wedge every stream on the connection."
+    )
+
+
+def _contains_window_update(data):
+    """True if `data` contains an HTTP/2 WINDOW_UPDATE frame (type 0x08).
+
+    HTTP/2 frame header: 24-bit length, 8-bit type, 8-bit flags,
+    32-bit stream id. Walk the frames and return as soon as one with
+    type 0x08 is found.
+    """
+    offset = 0
+    while offset + 9 <= len(data):
+        length = int.from_bytes(data[offset:offset + 3], "big")
+        frame_type = data[offset + 3]
+        if frame_type == 0x08:
+            return True
+        offset += 9 + length
+    return False
+
