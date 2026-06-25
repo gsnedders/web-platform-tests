@@ -150,17 +150,6 @@ def test_handle_one_request_marks_connection_closed_on_initial_sendall_oserror(e
     handler.request.recv.assert_not_called()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "_stream_thread wraps finish_handling in `except "
-        "(StreamClosedError, ProtocolError)` only. Any other exception "
-        "(OSError(EPIPE) from a sendall on a half-dead peer, a handler "
-        "bug surfacing as RuntimeError, etc.) escapes the worker past "
-        "the trailing cleanup() call, leaking the rfile/wfile pipe fds."
-    ),
-)
 def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
     file_mocks = [mock.MagicMock(), mock.MagicMock()]
 

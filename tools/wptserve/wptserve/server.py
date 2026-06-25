@@ -787,56 +787,62 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                 except OSError:
                     pass
 
-        while True:
-            frame = queue.get()
+        try:
+            while True:
+                frame = queue.get()
 
-            self.logger.debug(f'({self.uid} - {stream_id}) {str(frame)}')
-            if isinstance(frame, RequestReceived):
-                cleanup()
+                self.logger.debug(f'({self.uid} - {stream_id}) {str(frame)}')
+                if isinstance(frame, RequestReceived):
+                    cleanup()
 
-                pipe_rfile, pipe_wfile = os.pipe()
-                (rfile, wfile) = os.fdopen(pipe_rfile, 'rb'), os.fdopen(pipe_wfile, 'wb')
+                    pipe_rfile, pipe_wfile = os.pipe()
+                    (rfile, wfile) = os.fdopen(pipe_rfile, 'rb'), os.fdopen(pipe_wfile, 'wb')
 
-                stream_handler = H2HandlerCopy(self, frame, rfile)
+                    stream_handler = H2HandlerCopy(self, frame, rfile)
 
-                stream_handler.server.rewriter.rewrite(stream_handler)
-                request = H2Request(stream_handler)
-                response = H2Response(stream_handler, request)
+                    stream_handler.server.rewriter.rewrite(stream_handler)
+                    request = H2Request(stream_handler)
+                    response = H2Response(stream_handler, request)
 
-                req_handler = stream_handler.server.router.get_handler(request)
+                    req_handler = stream_handler.server.router.get_handler(request)
 
-                if hasattr(req_handler, "frame_handler"):
-                    # Convert this to a handler that will utilise H2 specific functionality, such as handling individual frames
-                    req_handler = self.frame_handler(request, response, req_handler)
+                    if hasattr(req_handler, "frame_handler"):
+                        # Convert this to a handler that will utilise H2 specific functionality, such as handling individual frames
+                        req_handler = self.frame_handler(request, response, req_handler)
 
-                if hasattr(req_handler, 'handle_headers'):
-                    req_handler.handle_headers(frame, request, response)
+                    if hasattr(req_handler, 'handle_headers'):
+                        req_handler.handle_headers(frame, request, response)
 
-            elif isinstance(frame, DataReceived):
-                wfile.write(frame.data)
+                elif isinstance(frame, DataReceived):
+                    wfile.write(frame.data)
 
-                if hasattr(req_handler, 'handle_data'):
-                    req_handler.handle_data(frame, request, response)
+                    if hasattr(req_handler, 'handle_data'):
+                        req_handler.handle_data(frame, request, response)
 
-            elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
-                self.logger.debug(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
-                break
+                elif frame is None or isinstance(frame, (StreamReset, StreamEnded, ConnectionTerminated)):
+                    self.logger.debug(f'({self.uid} - {stream_id}) Stream Reset, Thread Closing')
+                    break
 
-            if request is not None:
-                request.frames.append(frame)
+                if request is not None:
+                    request.frames.append(frame)
 
-            if getattr(frame, "stream_ended", False):
-                try:
-                    self.finish_handling(request, response, req_handler)
-                except (StreamClosedError, ProtocolError):
-                    # The stream or connection was closed before we could
-                    # finish writing the response.
-                    self.logger.debug(
-                        '(%s - %s) Unable to write response; stream or '
-                        'connection closed' % (self.uid, stream_id))
-                break
-
-        cleanup()
+                if getattr(frame, "stream_ended", False):
+                    try:
+                        self.finish_handling(request, response, req_handler)
+                    except (StreamClosedError, ProtocolError):
+                        # The stream or connection was closed before we could
+                        # finish writing the response.
+                        self.logger.debug(
+                            '(%s - %s) Unable to write response; stream or '
+                            'connection closed' % (self.uid, stream_id))
+                    break
+        finally:
+            # cleanup() closes the rfile/wfile pipe fds. Run it on every
+            # exit path — including unhandled exceptions from
+            # finish_handling, h2 writes, or the handler itself — so the
+            # fds don't leak when something other than StreamClosedError
+            # or ProtocolError escapes.
+            cleanup()
 
     def frame_handler(self, request, response, handler):
         try:
