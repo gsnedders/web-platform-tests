@@ -879,3 +879,65 @@ def test_connection_window_credited_across_streams(h2_server):
                 f"Stream {stream_id} did not complete (no StreamEnded). "
                 f"Events: {[type(e).__name__ for e in events]}"
             )
+
+
+# -- Extended CONNECT missing :scheme ----------------------------------------
+#
+# RFC 8441 §4: "On requests that contain the :protocol pseudo-header field,
+# the :scheme and :path pseudo-header fields of the target URI [...] MUST
+# also be included." An extended-CONNECT request carrying :protocol but no
+# :scheme is therefore malformed, and RFC 9113 §8.1.1 requires malformed
+# requests to be treated as a stream error of type PROTOCOL_ERROR, i.e.
+# RST_STREAM on the affected stream.
+#
+# Sibling of test_invalid_extended_connect_emits_protocol_error_rst_stream
+# (bad :protocol value); this one omits :scheme entirely. Sent raw because
+# the client's own h2 would refuse to serialise an extended CONNECT without
+# :scheme.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "wptserve does not reject an extended-CONNECT request that omits "
+        ":scheme. RFC 8441 §4 requires :scheme (and :path) on requests with "
+        ":protocol, and RFC 9113 §8.1.1 makes a malformed request a stream "
+        "error of type PROTOCOL_ERROR — the server should RST_STREAM, not "
+        "silently close or process the request."
+    ),
+)
+def test_extended_connect_missing_scheme_emits_protocol_error(h2_server):
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        encoder = hpack.Encoder()
+        header_block = encoder.encode([
+            (":method", "CONNECT"),
+            (":protocol", "websocket"),
+            (":authority", f"{client.host}:{client.port}"),
+            (":path", "/"),
+            # :scheme deliberately omitted — the RFC 8441 §4 violation.
+        ])
+        headers_frame = HeadersFrame(stream_id=1, data=header_block)
+        headers_frame.flags.add("END_HEADERS")
+        client.send_raw(headers_frame.serialize())
+
+        events = client.drain_events(
+            until_predicate=lambda e: (
+                isinstance(e, ConnectionTerminated) or
+                (isinstance(e, StreamReset) and e.stream_id == 1)
+            ),
+            total_timeout=5.0,
+        )
+
+    resets = [
+        e for e in events
+        if isinstance(e, StreamReset) and e.stream_id == 1
+    ]
+    assert resets, (
+        "Server emitted no RST_STREAM for an extended CONNECT missing "
+        ":scheme. Per RFC 8441 §4 + RFC 9113 §8.1.1 the right reaction is "
+        f"RST_STREAM(PROTOCOL_ERROR) on stream 1; got events: "
+        f"{[type(e).__name__ for e in events]}"
+    )
+    assert resets[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
+        f"Expected RST_STREAM(PROTOCOL_ERROR), got {resets[0].error_code}"
+    )
