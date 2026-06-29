@@ -497,3 +497,89 @@ def test_stream_ws_thread_joins_pump_when_transfer_data_raises():
         f"expected the RuntimeError from transfer_data to propagate out of "
         f"_stream_ws_thread, got {captured.get('exc')!r}"
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "_stream_ws_thread's teardown does `queue.put(None); t.join()`, but "
+        "if the frame pump is parked inside the unbuffered wfile.write (the "
+        "pipe filled because the ws session stopped reading), the None "
+        "sentinel can't reach it — the pump isn't at queue.get() — so "
+        "t.join() blocks forever and the worker deadlocks. A fix would close "
+        "the read end before joining so the blocked write raises and the "
+        "pump exits."
+    ),
+)
+def test_stream_ws_thread_does_not_deadlock_when_pump_blocked_on_write():
+    handler = _bare_handler()
+    handler.uid = "test"
+    handler.server = mock.MagicMock()  # provides self.server.ws_doc_root
+
+    # The worker's initial queue.get() consumes this RequestReceived; the
+    # pump then consumes the rest.
+    req = mock.MagicMock(spec=server_module.RequestReceived)
+    req.stream_id = 1
+    # A DATA frame far larger than the pipe buffer (~64 KiB). The pump's
+    # single unbuffered wfile.write() fills the buffer and then blocks
+    # forever because nothing reads the pipe (transfer_data is mocked out).
+    big_frame = mock.MagicMock(spec=server_module.DataReceived)
+    big_frame.data = b"\0" * (4 * 1024 * 1024)
+    big_frame.stream_ended = False
+
+    queue = Queue()
+    queue.put(req)        # consumed by _stream_ws_thread's initial get
+    queue.put(big_frame)  # pump blocks writing this to the real pipe
+    queue.put(None)       # sentinel the blocked pump can never reach
+
+    # Capture the real pipe file objects by mode so the cleanup below can
+    # close the read end and unblock the pump (no leaked thread).
+    real_fdopen = server_module.os.fdopen
+    opened = {}
+
+    def recording_fdopen(fd, mode="r", *args, **kwargs):
+        f = real_fdopen(fd, mode, *args, **kwargs)
+        opened[mode] = f
+        return f
+
+    def run_worker():
+        handler._stream_ws_thread(stream_id=1, queue=queue)
+
+    worker = threading.Thread(target=run_worker, daemon=True)
+    try:
+        with mock.patch.object(server_module.os, "fdopen", recording_fdopen), \
+             mock.patch.object(server_module, "H2HandlerCopy"), \
+             mock.patch.object(server_module, "H2Request"), \
+             mock.patch.object(server_module, "H2Response"), \
+             mock.patch.object(server_module, "_WebSocketRequest"), \
+             mock.patch.object(server_module, "WsH2Handshaker"), \
+             mock.patch.object(server_module.dispatch, "Dispatcher") as mock_dispatcher:
+            # Truthy handler suite so the worker proceeds; transfer_data
+            # returns immediately so the worker reaches its teardown finally
+            # while the pump is still blocked on the big write.
+            mock_dispatcher.return_value.get_handler_suite.return_value = object()
+
+            worker.start()
+            worker.join(timeout=2.0)
+
+            assert not worker.is_alive(), (
+                "_stream_ws_thread deadlocked: the frame pump is blocked in "
+                "wfile.write (pipe full, no reader) and the teardown's "
+                "queue.put(None); t.join() cannot interrupt it, so the worker "
+                "never returns."
+            )
+    finally:
+        # Unblock the pump without leaking it: drain the read end so the
+        # blocked write completes, after which the pump reads the sentinel
+        # and exits cleanly. (Closing the read end instead would make the
+        # write raise BrokenPipeError in the pump thread, which pytest's
+        # thread-exception plugin escalates to an error under
+        # filterwarnings=error.) Guarded for the XPASS case, where the
+        # worker already returned and closed the pipe.
+        read_end = opened.get("rb")
+        if read_end is not None and not read_end.closed:
+            try:
+                read_end.read()
+            except (ValueError, OSError):
+                pass
+        worker.join(timeout=2.0)
