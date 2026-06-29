@@ -7,6 +7,7 @@ not a mocked surface.
 """
 
 import os
+import socket
 import threading
 import time
 from unittest import mock
@@ -22,6 +23,7 @@ from h2.connection import H2Connection
 from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
 from h2.events import PingAckReceived
+from h2.events import RemoteSettingsChanged
 from h2.events import SettingsAcknowledged
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
@@ -1019,4 +1021,58 @@ def test_handle_data_exception_does_not_orphan_stream(h2_server):
         "handle_data raised, but the server sent neither a response nor an "
         "RST_STREAM on stream 1 — the stream is orphaned and the client "
         f"would hang. Events: {[type(e).__name__ for e in events]}"
+    )
+
+
+# -- Idle connection is never closed by the server ---------------------------
+#
+# This documents a MAY, not a MUST: RFC 9113 §6.5.3 lets a sender of SETTINGS
+# treat a missing ACK within SETTINGS_TIMEOUT as a connection error, and a
+# server is generally free to reclaim idle connections. wptserve sets no idle
+# timeout on self.request, so a client that completes the preface, never ACKs
+# the server's SETTINGS, and issues no request pins the connection's handler
+# thread on recv() indefinitely.
+#
+# This is not a harmful hang — the thread unblocks and cleans up as soon as
+# the client disconnects — and HTTP/2 connections are persistent by design,
+# so keeping the connection open is a legitimate choice. The test records the
+# absence of any idle reclamation as a known gap (resource exhaustion under
+# many silent clients), and stays xfail unless an idle timeout is added.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "wptserve sets no idle timeout on the H2 connection socket, so a "
+        "client that completes the preface and then stays silent (no request, "
+        "no SETTINGS ACK) keeps the handler thread blocked on recv() until it "
+        "disconnects. RFC 9113 §6.5.3 only permits (MAY) tearing such a "
+        "connection down via SETTINGS_TIMEOUT, so this documents a missing "
+        "optional reclamation, not a spec violation."
+    ),
+)
+def test_idle_connection_is_eventually_closed(h2_server):
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # Absorb the server's initial SETTINGS so the read below reflects
+        # idle behaviour rather than the handshake bytes.
+        client.drain_events(
+            until_predicate=lambda e: isinstance(e, RemoteSettingsChanged),
+            total_timeout=2.0,
+        )
+
+        # The client now goes silent. A server that reclaims idle connections
+        # would close, surfacing as EOF (recv -> b''). With no idle timeout
+        # the read blocks until it times out client-side.
+        client.tls_sock.settimeout(2.0)
+        try:
+            data = client.tls_sock.recv(65535)
+        except (socket.timeout, TimeoutError):
+            pytest.fail(
+                "Server kept the idle connection open: a silent client with "
+                "no request and no SETTINGS ACK was not reclaimed within the "
+                "timeout (no SETTINGS_TIMEOUT / idle close)."
+            )
+
+    assert data == b"", (
+        f"Expected EOF from an idle-connection close, got {data!r}"
     )
