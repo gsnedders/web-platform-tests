@@ -21,6 +21,7 @@ import wptserve.utils
 from h2.connection import H2Connection
 from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
+from h2.events import SettingsAcknowledged
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
 from h2.settings import SettingCodes
@@ -623,4 +624,47 @@ def test_headers_after_goaway_closes_connection_without_handler(h2_server):
         "server should reject the post-GOAWAY HEADERS at the h2 layer "
         "(ProtocolError) and tear the connection down without dispatching "
         "to a handler."
+    )
+
+
+# -- SETTINGS acknowledgement ------------------------------------------------
+#
+# RFC 9113 §6.5.3: "Once all values have been processed, the recipient MUST
+# immediately emit a SETTINGS frame with the ACK flag set." h2 queues that
+# ACK internally when receive_data() processes an inbound SETTINGS frame,
+# but the recv loop never flushes connection-level outbound bytes — it
+# routes stream events to workers and only the workers call data_to_send().
+# A SETTINGS frame that arrives on a connection with no in-flight request is
+# therefore processed but never acknowledged on the wire.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "The recv loop never flushes connection-level outbound bytes after "
+        "receive_data(), so the SETTINGS ACK that h2 queues for an inbound "
+        "SETTINGS frame is never sent. RFC 9113 §6.5.3 requires the "
+        "recipient to immediately emit a SETTINGS frame with the ACK flag "
+        "set."
+    ),
+)
+def test_settings_frame_is_acknowledged(h2_server):
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # The preface SETTINGS was already sent by connect(); send a fresh
+        # SETTINGS frame and wait for the server to acknowledge it. On the
+        # client side, the server's ACK surfaces as a SettingsAcknowledged
+        # event.
+        client.conn.update_settings({SettingCodes.MAX_FRAME_SIZE: 32768})
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, SettingsAcknowledged),
+            total_timeout=2.0,
+        )
+
+    acks = [e for e in events if isinstance(e, SettingsAcknowledged)]
+    assert acks, (
+        "Server never acknowledged the client's SETTINGS frame. Per RFC "
+        "9113 §6.5.3 it must immediately emit a SETTINGS frame with the ACK "
+        f"flag set. Events seen: {[type(e).__name__ for e in events]}"
     )
