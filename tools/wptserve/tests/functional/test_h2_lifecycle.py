@@ -779,3 +779,103 @@ def test_connection_error_emits_goaway(h2_server):
     assert terminations[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
         f"Expected GOAWAY(PROTOCOL_ERROR), got {terminations[0].error_code}"
     )
+
+
+# -- Connection-level flow-control credit across streams ---------------------
+#
+# RFC 9113 §6.9.1: a receiver "sends a WINDOW_UPDATE frame as it consumes
+# data and frees up space in flow-control windows." The connection-level
+# inbound window starts at 65,535 octets (§6.9.2) and is shared by every
+# stream; only a WINDOW_UPDATE on stream 0 replenishes it. wptserve consumes
+# inbound DATA (each handler reads request.body) but never returns credit on
+# any window, so the connection window monotonically drains across streams.
+#
+# The existing stream-level test (test_large_post_body_returns_flow_control
+# _credit) can't isolate this: a single 100 KB body hits the stream and
+# connection windows at the same 65,535 boundary. Here each stream's body is
+# well under the per-stream window, so only the *connection* window can stall
+# the third stream once the cumulative bytes pass 65,535.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "wptserve never returns connection-level flow-control credit "
+        "(no WINDOW_UPDATE on stream 0). The 65,535-byte connection window "
+        "(RFC 9113 §6.9.2) is shared across streams and drains monotonically "
+        "as DATA is consumed, so a third small POST stalls once the "
+        "cumulative body exceeds the window even though each stream is well "
+        "under the per-stream window. Crediting timing is implementation-"
+        "defined (§5.2.1) and §5.2.2's read-promptly MUST is satisfied; "
+        "§6.9.1 only describes credit following consumption — so this is an "
+        "interop/quality gap, not a normative violation."
+    ),
+)
+def test_connection_window_credited_across_streams(h2_server):
+    @wptserve.handlers.handler
+    def echo_size(request, response):
+        response.content = str(len(request.body)).encode("ascii")
+
+    h2_server.router.register("POST", "/echo-size-conn", echo_size)
+
+    body = b"y" * 30_000  # under the 65,535 per-stream window
+    # Three streams → 90,000 cumulative bytes, past the 65,535-byte
+    # connection window. Streams 1 and 3 fit; stream 5 stalls once the
+    # connection window is exhausted.
+    stream_ids = [1, 3, 5]
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        for stream_id in stream_ids:
+            client.conn.send_headers(
+                stream_id=stream_id,
+                headers=[
+                    (":method", "POST"),
+                    (":scheme", "https"),
+                    (":authority", f"{client.host}:{client.port}"),
+                    (":path", "/echo-size-conn"),
+                    ("content-length", str(len(body))),
+                ],
+                end_stream=False,
+            )
+
+            # Send the body respecting send-side flow control.
+            # local_flow_control_window is min(stream, connection) window;
+            # once the connection window is drained it returns 0 and stays
+            # there because no WINDOW_UPDATE arrives.
+            sent = 0
+            deadline = time.monotonic() + 2.0
+            while sent < len(body):
+                if time.monotonic() > deadline:
+                    pytest.fail(
+                        f"Stream {stream_id} stalled after {sent}/{len(body)} "
+                        "bytes — the connection-level window drained (cumulative "
+                        "bytes across streams exceeded 65,535) and no "
+                        "WINDOW_UPDATE on stream 0 ever replenished it"
+                    )
+                client.send_outbound()
+                client.drain_events(total_timeout=0.2)  # absorb any WINDOW_UPDATE
+                available = client.conn.local_flow_control_window(stream_id)
+                if available == 0:
+                    continue
+                chunk = body[sent:sent + min(available, 16384)]
+                client.conn.send_data(stream_id=stream_id, data=chunk)
+                sent += len(chunk)
+            client.conn.send_data(stream_id=stream_id, data=b"", end_stream=True)
+            client.send_outbound()
+
+            events = client.drain_events(
+                until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == stream_id,
+                total_timeout=2.0,
+            )
+            # Assert the stream *completed*, not its body content: a small
+            # POST body may arrive empty at the handler because of the
+            # separate buffered-pipe bug (test_small_post_body_reaches_
+            # handler). What this test isolates is whether the third stream
+            # can send its body at all once the connection window is drained.
+            assert any(
+                isinstance(e, StreamEnded) and e.stream_id == stream_id
+                for e in events
+            ), (
+                f"Stream {stream_id} did not complete (no StreamEnded). "
+                f"Events: {[type(e).__name__ for e in events]}"
+            )
