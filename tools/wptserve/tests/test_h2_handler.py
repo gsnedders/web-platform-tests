@@ -11,7 +11,8 @@ Functional / integration coverage of the same handler lives in
 """
 
 import socket
-from queue import Queue
+import threading
+from queue import Empty, Queue
 from unittest import mock
 
 import pytest
@@ -411,3 +412,88 @@ def _contains_window_update(data):
             return True
         offset += 9 + length
     return False
+
+
+def test_stream_ws_thread_joins_pump_when_transfer_data_raises():
+    """When the websocket handler (dispatcher.transfer_data) raises an
+    exception other than StreamClosedError/ProtocolError, _stream_ws_thread
+    must still wake and join its frame-pump helper before propagating, so
+    the pump isn't left orphaned on queue.get(). The helper is woken by the
+    `queue.put(None)` in the finally and reaped by the following `t.join()`.
+
+    The real pump is replaced with a recording stub: the test verifies the
+    orchestration (spawn → signal → join), not the pump internals, which are
+    covered by test_stream_ws_pump_frames_*. A missing `queue.put(None)`
+    would wedge the join (the outer join below would time out); a missing
+    finally would orphan the pump (no 'pump-exited' marker).
+    """
+    handler = _bare_handler()
+    handler.uid = "test"
+    handler.server = mock.MagicMock()  # provides self.server.ws_doc_root
+
+    # _stream_ws_thread only needs a RequestReceived to dequeue first; the
+    # handshake machinery that reads its headers is mocked out below.
+    frame = mock.MagicMock(spec=server_module.RequestReceived)
+    frame.stream_id = 1
+    queue = Queue()
+    queue.put(frame)
+
+    markers = Queue()
+
+    def fake_pump(self, stream_id, q, wfile):
+        # Mirror the real pump's exit-on-sentinel contract so the worker's
+        # t.join() can return. The timeout is only a safety net: if the
+        # worker's finally fails to signal us (the regression this guards),
+        # we still exit instead of leaking the thread — but we do NOT record
+        # a clean exit, so the assertion below still fails.
+        markers.put("pump-started")
+        while True:
+            try:
+                item = q.get(timeout=5.0)
+            except Empty:
+                return
+            if item is None:
+                markers.put("pump-exited")
+                return
+
+    captured = {}
+
+    def run_worker():
+        try:
+            handler._stream_ws_thread(stream_id=1, queue=queue)
+        except BaseException as e:
+            captured["exc"] = e
+
+    with mock.patch.object(server_module, "H2HandlerCopy"), \
+         mock.patch.object(server_module, "H2Request"), \
+         mock.patch.object(server_module, "H2Response"), \
+         mock.patch.object(server_module, "_WebSocketRequest"), \
+         mock.patch.object(server_module, "WsH2Handshaker"), \
+         mock.patch.object(server_module.dispatch, "Dispatcher") as mock_dispatcher, \
+         mock.patch.object(
+             server_module.Http2WebTestRequestHandler,
+             "_stream_ws_pump_frames", fake_pump):
+        # get_handler_suite must be truthy (else the worker 404s and returns
+        # before spawning the pump); transfer_data raises the unexpected error.
+        mock_dispatcher.return_value.get_handler_suite.return_value = object()
+        mock_dispatcher.return_value.transfer_data.side_effect = RuntimeError("boom")
+
+        worker = threading.Thread(target=run_worker, daemon=True)
+        worker.start()
+        worker.join(timeout=1.0)
+
+    assert not worker.is_alive(), (
+        "_stream_ws_thread did not return within 1s — its finally likely "
+        "blocked on t.join() because the pump was never signalled."
+    )
+
+    seen = []
+    while not markers.empty():
+        seen.append(markers.get())
+    assert "pump-started" in seen and "pump-exited" in seen, (
+        f"pump was not spawned and cleanly joined; markers seen: {seen}"
+    )
+    assert isinstance(captured.get("exc"), RuntimeError), (
+        f"expected the RuntimeError from transfer_data to propagate out of "
+        f"_stream_ws_thread, got {captured.get('exc')!r}"
+    )
