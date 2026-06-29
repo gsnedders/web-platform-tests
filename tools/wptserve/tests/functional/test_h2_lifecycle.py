@@ -1151,3 +1151,68 @@ def test_clean_eof_after_preface_releases_connection(h2_server, caplog):
         "Clean client EOF (half-close after the preface) produced ERROR-level "
         f"log records: {[r.getMessage() for r in errors]}"
     )
+
+
+# -- HEADERS frame split across two TCP writes -------------------------------
+#
+# h2 buffers partial frames internally: a frame delivered in two recv chunks
+# must be reassembled before its events surface. The recv loop just feeds
+# whatever bytes recv returns to receive_data(), so a HEADERS frame split
+# mid-preamble — before h2 even knows the frame length — must still be
+# reassembled and served. The likely refactor regression is a recv loop that
+# assumes each recv yields whole frames, or that treats a short read as EOF.
+
+
+def test_headers_frame_split_across_tcp_writes(h2_server):
+    @wptserve.handlers.handler
+    def hello(request, response):
+        response.content = b"hello-split-headers"
+
+    h2_server.router.register("GET", "/hello-split-headers", hello)
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # Build the HEADERS frame through the client's h2 (so its state machine
+        # knows stream 1 and will accept the response), then grab the
+        # serialized bytes and ship them split across two TCP writes. No events
+        # have been received yet, so data_to_send() is exactly the HEADERS
+        # frame — nothing else is queued to perturb the split point.
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "GET"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/hello-split-headers"),
+            ],
+            end_stream=True,
+        )
+        frame = client.conn.data_to_send()
+        assert len(frame) > 9, (
+            "expected a HEADERS frame larger than its 9-byte preamble, got "
+            f"{len(frame)} bytes"
+        )
+
+        # Split inside the 9-byte frame preamble: the server's first recv sees
+        # a partial frame header and can't yet know the frame's length, so it
+        # must buffer and wait for the rest.
+        split = 5
+        client.send_raw(frame[:split])
+        # Give the server's recv a chance to return the partial chunk on its
+        # own before the remainder arrives, so the two halves land in separate
+        # receive_data() calls.
+        time.sleep(0.1)
+        client.send_raw(frame[split:])
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+            total_timeout=2.0,
+        )
+
+    body = b"".join(
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    )
+    assert body == b"hello-split-headers", (
+        "Server did not reassemble a HEADERS frame split across two TCP "
+        f"writes. Events: {[type(e).__name__ for e in events]}"
+    )
