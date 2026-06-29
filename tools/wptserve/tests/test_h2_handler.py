@@ -20,6 +20,7 @@ import pytest
 import localpaths  # noqa: F401  # populates sys.path
 
 import wptserve.logger
+import h2.settings
 from h2.config import H2Configuration
 from h2.connection import H2Connection
 from wptserve import server as server_module
@@ -583,3 +584,60 @@ def test_stream_ws_thread_does_not_deadlock_when_pump_blocked_on_write():
             except (ValueError, OSError):
                 pass
         worker.join(timeout=2.0)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "handle_one_request (server.py line ~499) eagerly calls "
+        "connection.local_settings.acknowledge() during connection setup, "
+        "before any peer SETTINGS_ACK has arrived. acknowledge() is "
+        "h2-internal bookkeeping the library fires for itself when it "
+        "receives an inbound SETTINGS_ACK frame (h2/connection.py "
+        "_receive_settings_frame); application code driving it prematurely "
+        "commits the local SETTINGS deque as acknowledged while those "
+        "settings are still in flight. At setup time no peer has acked our "
+        "settings, so this call should not happen at all."
+    ),
+)
+def test_local_settings_not_acknowledged_during_setup():
+    """The handler must not self-acknowledge its own local SETTINGS while
+    they are still in flight.
+
+    The setup block (server.py ~492-499) copies local_settings, enables the
+    CONNECT protocol, then calls local_settings.acknowledge() before any
+    bytes leave the socket. That call is library bookkeeping h2 owns and
+    drives itself on receipt of an inbound SETTINGS_ACK; the application
+    should never invoke it. We make the handler exit right after the setup
+    block by failing the initial sendall — far enough to have called
+    acknowledge() if the code does, but before any wire I/O that could
+    legitimately receive a peer SETTINGS_ACK — and assert it was never
+    called.
+
+    acknowledge is patched at the class level with a call-through wrapper
+    (a plain function, so `instance.acknowledge()` binds self and real
+    behaviour is preserved for any code path that legitimately
+    acknowledges) that records every invocation. The expected outcome is
+    zero calls; today the premature call at line ~499 makes it one (the
+    xfail).
+    """
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+    handler.request.sendall.side_effect = ConnectionResetError()
+
+    original_acknowledge = h2.settings.Settings.acknowledge
+    acknowledge = mock.Mock(name="acknowledge", side_effect=original_acknowledge)
+
+    def recording_acknowledge(self):
+        return acknowledge(self)
+
+    with mock.patch.object(
+        h2.settings.Settings, "acknowledge", recording_acknowledge
+    ):
+        handler.handle_one_request()
+
+    assert acknowledge.call_count == 0, (
+        "local_settings.acknowledge() was called during connection setup, "
+        "before any peer SETTINGS_ACK arrived — the application is driving "
+        "h2-internal bookkeeping the library owns."
+    )
