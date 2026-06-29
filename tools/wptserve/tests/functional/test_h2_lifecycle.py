@@ -711,3 +711,71 @@ def test_ping_is_acknowledged(h2_server):
         f"PING ACK echoed the wrong payload: expected {payload!r}, got "
         f"{acks[0].ping_data!r}"
     )
+
+
+# -- GOAWAY on a connection error --------------------------------------------
+#
+# RFC 9113 §5.4.1: "An endpoint that encounters a connection error SHOULD
+# first send a GOAWAY frame (Section 6.8) with the stream identifier of the
+# last stream that it successfully received from its peer." When the
+# server's h2 detects a connection error it queues exactly that GOAWAY and
+# raises ProtocolError out of receive_data. The recv loop's `except
+# ProtocolError` branch only logs and exits — it never flushes the queued
+# GOAWAY — so the peer sees a bare TCP EOF with no error code.
+#
+# A connection-specific header field (RFC 9113 §8.2.2 forbids these) is a
+# clean trigger: the client must send it raw, because its own h2 would
+# refuse to serialise it.
+#
+# This is a SHOULD, not a MUST: §6.8 explicitly permits closing without a
+# GOAWAY for a misbehaving peer (and a connection-specific header field is
+# exactly such a peer), so the xfail documents the preferred behaviour, not
+# a spec violation.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "On a connection error the server's h2 queues a GOAWAY and raises "
+        "ProtocolError out of receive_data, but the recv loop's `except "
+        "ProtocolError` branch logs and exits without flushing it, so the "
+        "peer sees a bare TCP EOF with no error code. RFC 9113 §5.4.1 says an "
+        "endpoint SHOULD (not MUST) send a GOAWAY carrying the error code, "
+        "and §6.8 permits closing without one for a misbehaving peer — so "
+        "this is the preferred-behaviour gap, not a violation."
+    ),
+)
+def test_connection_error_emits_goaway(h2_server):
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # HEADERS carrying a connection-specific header field. The server's
+        # h2 treats this as a connection error (PROTOCOL_ERROR): it queues a
+        # GOAWAY and raises ProtocolError out of receive_data. Sent raw
+        # because the client's own h2 would refuse to serialise it.
+        encoder = hpack.Encoder()
+        header_block = encoder.encode([
+            (":method", "GET"),
+            (":scheme", "https"),
+            (":authority", f"{client.host}:{client.port}"),
+            (":path", "/"),
+            ("connection", "close"),
+        ])
+        headers_frame = HeadersFrame(stream_id=1, data=header_block)
+        headers_frame.flags.add("END_HEADERS")
+        headers_frame.flags.add("END_STREAM")
+        client.send_raw(headers_frame.serialize())
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, ConnectionTerminated),
+            total_timeout=2.0,
+        )
+
+    terminations = [e for e in events if isinstance(e, ConnectionTerminated)]
+    assert terminations, (
+        "Server closed the connection on a protocol error without sending a "
+        "GOAWAY — the client saw a bare TCP EOF. RFC 9113 §5.4.1 says a "
+        "connection error should be reported with a GOAWAY carrying the "
+        f"error code. Events seen: {[type(e).__name__ for e in events]}"
+    )
+    assert terminations[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
+        f"Expected GOAWAY(PROTOCOL_ERROR), got {terminations[0].error_code}"
+    )
