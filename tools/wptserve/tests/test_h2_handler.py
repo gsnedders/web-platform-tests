@@ -641,3 +641,57 @@ def test_local_settings_not_acknowledged_during_setup():
         "before any peer SETTINGS_ACK arrived — the application is driving "
         "h2-internal bookkeeping the library owns."
     )
+
+
+def test_handle_one_request_returns_on_clean_eof_after_preface():
+    """A client that completes the H2 preface and then cleanly closes makes
+    the server's recv return b''. The recv loop's `if data == b'': break`
+    path must exit handle_one_request promptly.
+
+    recv yields a real client preface (24-byte magic + SETTINGS) once and
+    then b'' forever. Correct code reads twice — the preface, then the EOF
+    that breaks the loop — and returns. If the b''-as-EOF break regressed,
+    receive_data(b'') would return no events and the loop would spin on recv
+    forever; the daemon worker below would never finish and the join would
+    time out (the `is_alive` assertion catches that). The exact `recv` count
+    pins the second read to the break, not an extra round trip.
+    """
+    handler = _bare_handler()
+    handler.request = mock.Mock(spec_set=socket.socket)
+
+    client = H2Connection(config=H2Configuration(client_side=True))
+    client.initiate_connection()
+    preface = client.data_to_send()
+
+    recv_calls = []
+
+    def fake_recv(bufsize):
+        recv_calls.append(bufsize)
+        return preface if len(recv_calls) == 1 else b""
+
+    handler.request.recv.side_effect = fake_recv
+
+    captured = {}
+
+    def run():
+        try:
+            handler.handle_one_request()
+        except BaseException as e:  # surfaced via captured, asserted below
+            captured["exc"] = e
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(timeout=1.0)
+
+    assert not worker.is_alive(), (
+        "handle_one_request did not return after a clean EOF (b'') — the recv "
+        "loop's `if data == b'': break` may have regressed, leaving it "
+        "spinning on recv."
+    )
+    assert "exc" not in captured, (
+        f"handle_one_request raised on a clean EOF: {captured.get('exc')!r}"
+    )
+    assert len(recv_calls) == 2, (
+        "Expected exactly two recv calls (the preface, then the EOF that "
+        f"breaks the loop); got {len(recv_calls)}."
+    )

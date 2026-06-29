@@ -7,6 +7,7 @@ not a mocked surface.
 """
 
 import os
+import logging
 import socket
 import threading
 import time
@@ -1075,4 +1076,78 @@ def test_idle_connection_is_eventually_closed(h2_server):
 
     assert data == b"", (
         f"Expected EOF from an idle-connection close, got {data!r}"
+    )
+
+
+# -- Clean EOF after the preface releases the connection ---------------------
+#
+# A client that completes the H2 preface and then half-closes (TCP FIN, no
+# GOAWAY) makes the server's recv return b''. handle_one_request's recv loop
+# treats that as EOF (`if data == b'': break`) and returns, releasing the
+# connection. The server's listening SSLSocket uses suppress_ragged_eofs (the
+# wrap_socket default), so the missing TLS close_notify surfaces as a clean
+# b'' rather than an SSLError — the loop's clean-EOF branch, not the OSError
+# branch. This is the common, well-behaved disconnect: it must not log an
+# error, must close the server's side, and must leave the server able to
+# serve the next connection. The likely regression here is a recv loop that
+# treats a short read or b'' as something other than a clean EOF.
+
+
+def test_clean_eof_after_preface_releases_connection(h2_server, caplog):
+    @wptserve.handlers.handler
+    def hello(request, response):
+        response.content = b"hello-after-eof"
+
+    h2_server.router.register("GET", "/hello-after-eof", hello)
+
+    with caplog.at_level(logging.ERROR):
+        # Client 1: finish the preface, then half-close without any frames.
+        with H2RawClient(h2_server.host, h2_server.port) as client1:
+            # Wait until the server has sent its SETTINGS (RemoteSettingsChanged
+            # on the client) so we exercise a clean EOF on an established
+            # connection rather than racing the handshake.
+            client1.drain_events(
+                until_predicate=lambda e: isinstance(e, RemoteSettingsChanged),
+                total_timeout=2.0,
+            )
+            # Half-close: TCP FIN on the write side. The server's blocked recv
+            # returns b'' and the recv loop breaks.
+            client1.tls_sock.shutdown(socket.SHUT_WR)
+            # The server should reciprocate by closing its side. drain_until_
+            # close returns on that EOF and raises socket.timeout if the server
+            # hung on the half-closed connection instead of tearing it down.
+            client1.drain_until_close(timeout=3.0)
+
+        # Client 2: a fresh connection must be served normally, proving the
+        # clean EOF released the handler without wedging the server.
+        with H2RawClient(h2_server.host, h2_server.port) as client2:
+            client2.conn.send_headers(
+                stream_id=1,
+                headers=[
+                    (":method", "GET"),
+                    (":scheme", "https"),
+                    (":authority", f"{client2.host}:{client2.port}"),
+                    (":path", "/hello-after-eof"),
+                ],
+                end_stream=True,
+            )
+            client2.send_outbound()
+            events = client2.drain_events(
+                until_predicate=lambda e: isinstance(e, StreamEnded) and e.stream_id == 1,
+                total_timeout=3.0,
+            )
+
+    body = b"".join(
+        e.data for e in events
+        if isinstance(e, DataReceived) and e.stream_id == 1
+    )
+    assert body == b"hello-after-eof", (
+        "Server did not serve a fresh connection after a clean client EOF. "
+        f"Events: {[type(e).__name__ for e in events]}"
+    )
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert not errors, (
+        "Clean client EOF (half-close after the preface) produced ERROR-level "
+        f"log records: {[r.getMessage() for r in errors]}"
     )
