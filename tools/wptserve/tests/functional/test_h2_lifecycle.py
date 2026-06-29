@@ -21,6 +21,7 @@ import wptserve.utils
 from h2.connection import H2Connection
 from h2.errors import ErrorCodes
 from h2.events import ConnectionTerminated
+from h2.events import PingAckReceived
 from h2.events import SettingsAcknowledged
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
@@ -667,4 +668,46 @@ def test_settings_frame_is_acknowledged(h2_server):
         "Server never acknowledged the client's SETTINGS frame. Per RFC "
         "9113 §6.5.3 it must immediately emit a SETTINGS frame with the ACK "
         f"flag set. Events seen: {[type(e).__name__ for e in events]}"
+    )
+
+
+# -- PING acknowledgement ----------------------------------------------------
+#
+# RFC 9113 §6.7: "Receivers of a PING frame that does not include an ACK
+# flag MUST send a PING frame with the ACK flag set in response, with an
+# identical payload." As with SETTINGS, h2 queues the PING ACK when
+# receive_data() processes the inbound PING, but the recv loop never flushes
+# connection-level outbound bytes, so the ACK never reaches the wire on a
+# connection with no in-flight request driving a worker's data_to_send().
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "The recv loop never flushes connection-level outbound bytes after "
+        "receive_data(), so the PING ACK h2 queues for an inbound PING is "
+        "never sent. RFC 9113 §6.7 requires a PING ACK with an identical "
+        "payload."
+    ),
+)
+def test_ping_is_acknowledged(h2_server):
+    payload = b"pingpong"  # PING payload is exactly 8 octets
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        client.conn.ping(payload)
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, PingAckReceived),
+            total_timeout=2.0,
+        )
+
+    acks = [e for e in events if isinstance(e, PingAckReceived)]
+    assert acks, (
+        "Server never acknowledged the client's PING frame. Per RFC 9113 "
+        f"§6.7 it must respond with a PING ACK. Events seen: "
+        f"{[type(e).__name__ for e in events]}"
+    )
+    assert acks[0].ping_data == payload, (
+        f"PING ACK echoed the wrong payload: expected {payload!r}, got "
+        f"{acks[0].ping_data!r}"
     )
