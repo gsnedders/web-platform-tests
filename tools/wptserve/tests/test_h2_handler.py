@@ -206,13 +206,21 @@ def test_stream_thread_closes_pipe_fds_when_finish_handling_raises():
 
 
 def test_recv_loop_skips_request_after_connection_terminated_in_same_batch():
-    """When ConnectionTerminated and a new RequestReceived arrive in
-    the same frame batch, the recv loop must not spawn a worker for
-    the late RequestReceived. ConnectionTerminated sets
-    close_connection True; the RequestReceived branch's
-    `if self.close_connection: continue` guard then bails. Previously
-    the guard was missing and the loop fell through, spawning a worker
-    thread that immediately had to be drained and joined in finally.
+    """A RequestReceived arriving in the same batch as a
+    ConnectionTerminated must never spawn a worker. Real h2 cannot
+    produce that batch: once a peer GOAWAY moves the connection to the
+    CLOSED state, subsequent HEADERS raise ProtocolError out of
+    receive_data rather than yielding a RequestReceived. The recv loop
+    encodes that invariant as `assert not terminated` in the
+    RequestReceived branch.
+
+    This test fabricates the impossible batch by mocking receive_data to
+    return [ConnectionTerminated, RequestReceived]. The assert fires, the
+    recv loop's `except Exception` catches it, and crucially no worker is
+    spawned for the stream the GOAWAY already invalidated. Mocking is the
+    only way to reach this tripwire — by construction it cannot be
+    produced on the wire (see the functional companion
+    test_headers_after_goaway_closes_connection_without_handler).
     """
     conn_term = mock.MagicMock(spec=server_module.ConnectionTerminated)
     req_frame = mock.MagicMock(spec=server_module.RequestReceived)
@@ -403,4 +411,3 @@ def _contains_window_update(data):
             return True
         offset += 9 + length
     return False
-

@@ -11,6 +11,7 @@ import threading
 import time
 from unittest import mock
 
+import hpack
 import pytest
 
 import localpaths  # noqa: F401  # populates sys.path
@@ -23,7 +24,7 @@ from h2.events import ConnectionTerminated
 from h2.events import StreamReset
 from h2.events import DataReceived, StreamEnded
 from h2.settings import SettingCodes
-from hyperframe.frame import GoAwayFrame
+from hyperframe.frame import GoAwayFrame, HeadersFrame
 
 from .base import doc_root
 from .h2_raw_client import H2RawClient
@@ -106,8 +107,8 @@ def test_invalid_extended_connect_emits_protocol_error_rst_stream(h2_server):
         client.send_outbound()
         events = client.drain_events(
             until_predicate=lambda e: (
-                isinstance(e, ConnectionTerminated)
-                or (isinstance(e, StreamReset) and e.stream_id == 1)
+                isinstance(e, ConnectionTerminated) or
+                (isinstance(e, StreamReset) and e.stream_id == 1)
             ),
             total_timeout=5.0,
         )
@@ -549,4 +550,77 @@ def test_zero_initial_window_size_does_not_collapse_connection(h2_server):
         f"Server tore down the connection on a legal SETTINGS frame "
         f"(INITIAL_WINDOW_SIZE=0). Events: "
         f"{[type(e).__name__ for e in events]}"
+    )
+
+
+# -- HEADERS after a client GOAWAY -------------------------------------------
+#
+# A client that sends GOAWAY and then opens a new stream is misbehaving.
+# h2's connection state machine moves to CLOSED on receipt of the peer
+# GOAWAY, so the trailing HEADERS raise ProtocolError out of receive_data
+# rather than yielding a RequestReceived. The recv loop's `except
+# ProtocolError` branch then tears the connection down.
+#
+# This is the real-wire counterpart to the unit test
+# test_recv_loop_skips_request_after_connection_terminated_in_same_batch:
+# that test mocks receive_data to fabricate a [ConnectionTerminated,
+# RequestReceived] batch (which the recv loop guards with an assert),
+# while this test confirms that real h2 never produces such a batch — it
+# raises instead. Together they show the assert is a tripwire for a
+# scenario the wire cannot produce. The value here is the misbehaving-
+# client guarantee: HEADERS-after-GOAWAY must tear the connection down
+# promptly without running the handler and without hanging.
+
+
+def test_headers_after_goaway_closes_connection_without_handler(h2_server):
+    handler_invoked = threading.Event()
+
+    class SideChannelHandler:
+        # handle_headers fires in _stream_thread the instant a worker
+        # dequeues a RequestReceived; __call__ fires from finish_handling
+        # on StreamEnded. Either firing means the server processed the
+        # post-GOAWAY HEADERS as a request, which it must not.
+        def handle_headers(self, frame, request, response):
+            handler_invoked.set()
+
+        def __call__(self, request, response):
+            handler_invoked.set()
+
+    h2_server.router.register("GET", "/goaway-then-headers", SideChannelHandler())
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # Build a raw HEADERS frame for stream 1. END_HEADERS marks the
+        # block complete (no CONTINUATION); END_STREAM makes it a complete
+        # request, so absent the GOAWAY the server would run the handler.
+        encoder = hpack.Encoder()
+        header_block = encoder.encode([
+            (":method", "GET"),
+            (":scheme", "https"),
+            (":authority", f"{client.host}:{client.port}"),
+            (":path", "/goaway-then-headers"),
+        ])
+        headers_frame = HeadersFrame(stream_id=1, data=header_block)
+        headers_frame.flags.add("END_HEADERS")
+        headers_frame.flags.add("END_STREAM")
+
+        # GOAWAY(last_stream_id=0) then HEADERS(stream=1) in one TCP write.
+        # The server's h2 connection is CLOSED by the GOAWAY, so the
+        # HEADERS raise ProtocolError out of receive_data.
+        goaway = GoAwayFrame(
+            stream_id=0,
+            last_stream_id=0,
+            error_code=ErrorCodes.NO_ERROR,
+        )
+        client.send_raw(goaway.serialize() + headers_frame.serialize())
+
+        # The server must close the connection promptly. drain_until_close
+        # returns on clean EOF; if the server hung, it raises socket.timeout
+        # and the test fails loudly rather than blocking forever.
+        client.drain_until_close(timeout=5.0)
+
+    assert not handler_invoked.is_set(), (
+        "Handler ran for a stream opened after the client's GOAWAY. The "
+        "server should reject the post-GOAWAY HEADERS at the h2 layer "
+        "(ProtocolError) and tear the connection down without dispatching "
+        "to a handler."
     )

@@ -549,8 +549,20 @@ class Http2WebTestRequestHandler(BaseWebTestRequestHandler):
                         # above), so we never see a second RequestReceived
                         # for the same stream_id here. Spawn the worker, then
                         # enqueue the frame on its queue.
-                        if terminated:
-                            continue
+                        #
+                        # A RequestReceived can also never follow a
+                        # ConnectionTerminated within one batch: once a peer
+                        # GOAWAY moves h2 to the CLOSED state, any subsequent
+                        # HEADERS raises ProtocolError out of receive_data
+                        # rather than yielding a RequestReceived. So
+                        # `terminated` is always False here; assert it so that
+                        # a future h2 which violated this surfaces loudly
+                        # instead of silently spawning a worker the GOAWAY has
+                        # already invalidated.
+                        assert not terminated, (
+                            "RequestReceived after ConnectionTerminated in a "
+                            "single batch — h2 should have raised ProtocolError"
+                        )
                         assert frame.stream_id not in stream_queues, (
                             f"second RequestReceived for stream {frame.stream_id}"
                         )
