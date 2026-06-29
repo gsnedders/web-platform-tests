@@ -941,3 +941,82 @@ def test_extended_connect_missing_scheme_emits_protocol_error(h2_server):
     assert resets[0].error_code == ErrorCodes.PROTOCOL_ERROR, (
         f"Expected RST_STREAM(PROTOCOL_ERROR), got {resets[0].error_code}"
     )
+
+
+# -- handle_data hook exception orphans the stream ---------------------------
+#
+# The regular handler call is wrapped by finish_handling (try/except Exception
+# -> response.set_error(500, e), which also logs the traceback), and the H2
+# frame_handler entry point is wrapped by Http2WebTestRequestHandler.
+# frame_handler. But the per-frame hooks handle_headers and handle_data are
+# invoked directly in _stream_thread with no try/except. An exception in one
+# of them propagates out of the worker, runs cleanup() in the finally, and
+# kills the worker thread (traceback to stderr via threading.excepthook) —
+# without sending any frame for the stream.
+#
+# The connection itself survives (the recv loop runs in another thread and
+# reaps the dead worker), so this is correctly stream-scoped, not a
+# connection error. But nothing is signalled on the stream: no response, no
+# RST_STREAM. RFC 9113 §5.4.2 says a stream error should be conveyed with
+# RST_STREAM; here the stream is simply orphaned and the client hangs.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "handle_data / handle_headers hooks are called in _stream_thread "
+        "without a try/except (unlike finish_handling and the frame_handler "
+        "wrapper). An exception there kills the worker thread silently — no "
+        "response and no RST_STREAM on the stream — so the client's stream "
+        "hangs. RFC 9113 §5.4.2 expects a stream error to be signalled with "
+        "RST_STREAM."
+    ),
+)
+def test_handle_data_exception_does_not_orphan_stream(h2_server):
+    class RaisingDataHandler:
+        # handle_data runs in _stream_thread for each DataReceived, before
+        # finish_handling. Raising here kills the worker before any response
+        # is produced.
+        def handle_data(self, frame, request, response):
+            raise RuntimeError("handle_data bug")
+
+        def __call__(self, request, response):
+            # Never reached — the worker dies on the DATA frame above.
+            pass
+
+    h2_server.router.register("POST", "/raise-in-handle-data", RaisingDataHandler())
+
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "POST"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/raise-in-handle-data"),
+            ],
+            end_stream=False,
+        )
+        client.conn.send_data(stream_id=1, data=b"trigger", end_stream=True)
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: (
+                (isinstance(e, StreamEnded) and e.stream_id == 1) or
+                (isinstance(e, StreamReset) and e.stream_id == 1)
+            ),
+            total_timeout=2.0,
+        )
+
+    # A handler error on the stream should produce a stream-scoped signal —
+    # a response (StreamEnded) or an RST_STREAM — not leave the client
+    # waiting forever.
+    resolved = [
+        e for e in events
+        if isinstance(e, (StreamEnded, StreamReset)) and e.stream_id == 1
+    ]
+    assert resolved, (
+        "handle_data raised, but the server sent neither a response nor an "
+        "RST_STREAM on stream 1 — the stream is orphaned and the client "
+        f"would hang. Events: {[type(e).__name__ for e in events]}"
+    )
