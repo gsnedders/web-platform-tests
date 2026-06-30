@@ -1079,6 +1079,78 @@ def test_idle_connection_is_eventually_closed(h2_server):
     )
 
 
+# -- Partial frame then stall (slowloris) ------------------------------------
+#
+# Sibling of test_idle_connection_is_eventually_closed, but a stricter case.
+# There the client is fully silent after the preface, so an "idle since
+# connect" timer (or SETTINGS_TIMEOUT) would suffice to reclaim it. Here the
+# client sends a *partial* frame and then stalls: h2 has buffered an
+# incomplete frame and the recv loop is parked on the next recv() mid-frame.
+# A client that periodically dribbles a byte keeps any inactivity timer reset
+# while never completing a frame, so a correct fix must bound per-read /
+# per-frame progress, not just total silence. Like the idle case this is a
+# MAY (RFC 9113 §6.5.3 SETTINGS_TIMEOUT), not a spec violation.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "wptserve sets no socket timeout on the H2 connection, so a client "
+        "that sends a partial frame and then stalls pins the recv-loop thread "
+        "on recv() forever. Unlike test_idle_connection_is_eventually_closed "
+        "(fully-silent client), here bytes HAVE been received, so an "
+        "inactivity timer reset by received data would be defeated by a "
+        "dribbling client — the fix must bound per-read/per-frame progress. "
+        "RFC 9113 §6.5.3 SETTINGS_TIMEOUT only permits (MAY) reclaiming such a "
+        "connection, so this documents a missing optional reclamation, not a "
+        "spec violation."
+    ),
+)
+def test_partial_frame_then_stall_is_eventually_closed(h2_server):
+    with H2RawClient(h2_server.host, h2_server.port) as client:
+        # Absorb the server's initial SETTINGS so the recv below reflects the
+        # stall, not buffered handshake bytes.
+        client.drain_events(
+            until_predicate=lambda e: isinstance(e, RemoteSettingsChanged),
+            total_timeout=2.0,
+        )
+
+        # Send the first 5 bytes of a HEADERS frame — a partial 9-byte frame
+        # preamble. h2 buffers it and waits for the rest, so the recv loop is
+        # parked on recv() mid-frame. Sent raw so no other frame rides along.
+        # The client then goes silent.
+        encoder = hpack.Encoder()
+        header_block = encoder.encode([
+            (":method", "GET"),
+            (":scheme", "https"),
+            (":authority", f"{client.host}:{client.port}"),
+            (":path", "/"),
+        ])
+        headers_frame = HeadersFrame(stream_id=1, data=header_block)
+        headers_frame.flags.add("END_HEADERS")
+        headers_frame.flags.add("END_STREAM")
+        client.send_raw(headers_frame.serialize()[:5])
+
+        # A server that bounds per-read progress would reclaim this; with no
+        # socket timeout it blocks on recv() forever and the client's read
+        # times out.
+        client.tls_sock.settimeout(2.0)
+        try:
+            data = client.tls_sock.recv(65535)
+        except (socket.timeout, TimeoutError):
+            pytest.fail(
+                "Server kept the connection open with a partial frame "
+                "buffered: a client that sends an incomplete frame and then "
+                "stalls was not reclaimed within the timeout (no per-read or "
+                "per-frame timeout)."
+            )
+
+    assert data == b"", (
+        f"Expected EOF from the server reclaiming a stalled partial-frame "
+        f"connection, got {data!r}"
+    )
+
+
 # -- Clean EOF after the preface releases the connection ---------------------
 #
 # A client that completes the H2 preface and then half-closes (TCP FIN, no
