@@ -10,6 +10,7 @@ Functional / integration coverage of the same handler lives in
 `tests/functional/test_h2_lifecycle.py`.
 """
 
+import os
 import socket
 import threading
 from queue import Empty, Queue
@@ -695,3 +696,100 @@ def test_handle_one_request_returns_on_clean_eof_after_preface():
         "Expected exactly two recv calls (the preface, then the EOF that "
         f"breaks the loop); got {len(recv_calls)}."
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "_stream_thread is the sole writer AND the sole reader of the "
+        "request-body pipe: it writes each DataReceived frame to wfile "
+        "(server.py ~831) but only drains the other end via finish_handling "
+        "on StreamEnded (~844), all in one thread. A body larger than the OS "
+        "pipe buffer (~64 KiB) fills the pipe before StreamEnded arrives, so "
+        "wfile.write blocks with no reader and the worker self-deadlocks "
+        "before it can reach finish_handling. This is masked in normal "
+        "operation only because the server's inbound flow-control window "
+        "(65535, never credited — see "
+        "test_connection_window_credited_across_streams) currently stays at "
+        "or below the pipe capacity; it becomes live the moment the window is "
+        "raised or the pipe is smaller. A fix would decouple body buffering "
+        "from the fixed-capacity pipe (e.g. an in-memory buffer for the "
+        "finish_handling path)."
+    ),
+)
+def test_stream_thread_does_not_deadlock_on_body_larger_than_pipe():
+    handler = _bare_handler()
+    handler.uid = "test"
+    handler.close_connection = False
+
+    # A RequestReceived opens the pipe + handler; a DATA frame far larger than
+    # the OS pipe buffer then fills it. _stream_thread writes it to wfile with
+    # no concurrent reader (finish_handling only runs on StreamEnded, in this
+    # same thread), so the write blocks. Driving _stream_thread directly lets
+    # the body exceed the pipe capacity without going through the (un-raised)
+    # flow-control window that masks this on the wire.
+    req = mock.MagicMock(spec=server_module.RequestReceived)
+    req.stream_id = 1
+    big_frame = mock.MagicMock(spec=server_module.DataReceived)
+    big_frame.data = b"\0" * (4 * 1024 * 1024)
+    big_frame.stream_ended = False
+
+    queue = Queue()
+    queue.put(req)
+    queue.put(big_frame)
+    queue.put(None)  # the worker can't reach this while blocked on the write
+
+    def fake_handler_copy(h, req_frame, rfile):
+        m = mock.MagicMock()
+        # Plain object => no frame_handler / handle_headers / handle_data, so
+        # the DataReceived branch does nothing but wfile.write.
+        m.server.router.get_handler.return_value = object()
+        return m
+
+    # Wrap os.fdopen to capture the real pipe read end by mode, so the cleanup
+    # below can drain it and unblock the worker without leaking the thread.
+    real_fdopen = server_module.os.fdopen
+    opened = {}
+
+    def recording_fdopen(fd, mode="r", *args, **kwargs):
+        f = real_fdopen(fd, mode, *args, **kwargs)
+        opened[mode] = f
+        return f
+
+    def run_worker():
+        handler._stream_thread(stream_id=1, queue=queue)
+
+    worker = threading.Thread(target=run_worker, daemon=True)
+    try:
+        with mock.patch.object(server_module.os, "fdopen", recording_fdopen), \
+             mock.patch.object(server_module, "H2HandlerCopy", side_effect=fake_handler_copy), \
+             mock.patch.object(server_module, "H2Request"), \
+             mock.patch.object(server_module, "H2Response"):
+            worker.start()
+            worker.join(timeout=2.0)
+
+            assert not worker.is_alive(), (
+                "_stream_thread deadlocked: it filled the request-body pipe "
+                "with a body larger than the pipe buffer and blocked in "
+                "wfile.write, with no reader (finish_handling only runs on "
+                "StreamEnded, in this same thread)."
+            )
+    finally:
+        # Drain the pipe so the blocked write completes and the worker can
+        # consume the None sentinel and exit. _stream_thread's cleanup()
+        # closes BOTH ends, so we must NOT drain via read_end.read(): that
+        # holds the BufferedReader lock while blocked, and the worker's
+        # rfile.close() would deadlock acquiring the same lock. Reading the
+        # raw fd sidesteps the lock entirely. Bounded by worker liveness.
+        read_end = opened.get("rb")
+        try:
+            fd = read_end.fileno() if read_end is not None else None
+        except (ValueError, OSError):
+            fd = None
+        while fd is not None and worker.is_alive():
+            try:
+                if not os.read(fd, 1 << 20):
+                    break
+            except OSError:
+                break
+        worker.join(timeout=2.0)
