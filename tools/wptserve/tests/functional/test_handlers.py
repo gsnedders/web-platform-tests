@@ -366,6 +366,7 @@ class TestAsIsHandler(TestUsingServer):
 
 
 class TestH2Handler(TestUsingH2Server):
+    @pytest.mark.must
     def test_handle_headers(self):
         resp = self.client.get('/test_h2_headers.py')
 
@@ -373,6 +374,7 @@ class TestH2Handler(TestUsingH2Server):
         assert resp.headers['test'] == 'passed'
         assert resp.content == b''
 
+    @pytest.mark.must
     def test_only_main(self):
         resp = self.client.get('/test_tuple_3.py')
 
@@ -381,12 +383,14 @@ class TestH2Handler(TestUsingH2Server):
         assert resp.headers['X-Test'] == 'PASS'
         assert resp.content == b'PASS'
 
+    @pytest.mark.must
     def test_handle_data(self):
         resp = self.client.post('/test_h2_data.py', content=b'hello world!')
 
         assert resp.status_code == 200
         assert resp.content == b'HELLO WORLD!'
 
+    @pytest.mark.must
     def test_handle_headers_data(self):
         resp = self.client.post('/test_h2_headers_data.py', content=b'hello world!')
 
@@ -394,17 +398,20 @@ class TestH2Handler(TestUsingH2Server):
         assert resp.headers['test'] == 'passed'
         assert resp.content == b'HELLO WORLD!'
 
+    @pytest.mark.must
     def test_no_main_or_handlers(self):
         resp = self.client.get('/no_main.py')
 
         assert resp.status_code == 500
         assert "No main function or handlers in script " in json.loads(resp.content)["error"]["message"]
 
+    @pytest.mark.must
     def test_not_found(self):
         resp = self.client.get('/no_exist.py')
 
         assert resp.status_code == 404
 
+    @pytest.mark.must
     def test_requesting_multiple_resources(self):
         # 1st .py resource
         resp = self.client.get('/test_h2_headers.py')

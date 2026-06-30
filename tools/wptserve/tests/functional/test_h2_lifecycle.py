@@ -393,6 +393,7 @@ def test_large_post_body_returns_flow_control_credit(h2_server):
         "in-flight stream to finish."
     ),
 )
+@pytest.mark.may
 def test_inflight_request_completes_after_client_goaway(h2_server):
     @wptserve.handlers.handler
     def echo_body(request, response):
@@ -679,6 +680,7 @@ def test_headers_after_goaway_closes_connection_without_handler(h2_server):
         "set."
     ),
 )
+@pytest.mark.must
 def test_settings_frame_is_acknowledged(h2_server):
     with H2RawClient(h2_server.host, h2_server.port) as client:
         # The preface SETTINGS was already sent by connect(); send a fresh
@@ -720,6 +722,7 @@ def test_settings_frame_is_acknowledged(h2_server):
         "payload."
     ),
 )
+@pytest.mark.must
 def test_ping_is_acknowledged(h2_server):
     payload = b"pingpong"  # PING payload is exactly 8 octets
     with H2RawClient(h2_server.host, h2_server.port) as client:
@@ -775,6 +778,7 @@ def test_ping_is_acknowledged(h2_server):
         "this is the preferred-behaviour gap, not a violation."
     ),
 )
+@pytest.mark.should
 def test_connection_error_emits_goaway(h2_server):
     with H2RawClient(h2_server.host, h2_server.port) as client:
         # HEADERS carrying a connection-specific header field. The server's
@@ -936,6 +940,7 @@ def test_connection_window_credited_across_streams(h2_server):
         "silently close or process the request."
     ),
 )
+@pytest.mark.must
 def test_extended_connect_missing_scheme_emits_protocol_error(h2_server):
     with H2RawClient(h2_server.host, h2_server.port) as client:
         encoder = hpack.Encoder()
@@ -1079,6 +1084,7 @@ def test_handle_data_exception_does_not_orphan_stream(h2_server):
         "optional reclamation, not a spec violation."
     ),
 )
+@pytest.mark.may
 def test_idle_connection_is_eventually_closed(h2_server):
     with H2RawClient(h2_server.host, h2_server.port) as client:
         # Absorb the server's initial SETTINGS so the read below reflects
@@ -1133,6 +1139,7 @@ def test_idle_connection_is_eventually_closed(h2_server):
         "spec violation."
     ),
 )
+@pytest.mark.may
 def test_partial_frame_then_stall_is_eventually_closed(h2_server):
     with H2RawClient(h2_server.host, h2_server.port) as client:
         # Absorb the server's initial SETTINGS so the recv below reflects the

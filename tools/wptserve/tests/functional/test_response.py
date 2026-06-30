@@ -182,6 +182,7 @@ class TestResponse(TestUsingServer):
         assert str(e.value) == resp_content.decode('utf-8')
 
 class TestH2Response(TestUsingH2Server):
+    @pytest.mark.must
     def test_write_without_ending_stream(self):
         data = b"TEST"
 
@@ -204,6 +205,7 @@ class TestH2Response(TestUsingH2Server):
         assert [x for x in resp.headers.items()] == [('server', 'test-h2'), ('test', 'PASS')]
         assert resp.content == data
 
+    @pytest.mark.must
     def test_set_error(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -218,6 +220,7 @@ class TestH2Response(TestUsingH2Server):
         assert error["code"] == 503
         assert "Test error" in error["message"]
 
+    @pytest.mark.must
     def test_file_like_response(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -231,6 +234,7 @@ class TestH2Response(TestUsingH2Server):
         assert resp.status_code == 200
         assert resp.content == b"Hello, world!"
 
+    @pytest.mark.must
     def test_list_response(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -243,6 +247,7 @@ class TestH2Response(TestUsingH2Server):
         assert resp.status_code == 200
         assert resp.content == b"helloworld"
 
+    @pytest.mark.must
     def test_content_longer_than_frame_size(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -274,6 +279,7 @@ class TestH2Response(TestUsingH2Server):
         resp = self.client.get(route[1])
         assert resp.status_code == 200
 
+    @pytest.mark.must
     def test_raw_header_frame(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -290,6 +296,7 @@ class TestH2Response(TestUsingH2Server):
         assert resp.headers['server'] == 'TEST-H2'
         assert resp.content == b''
 
+    @pytest.mark.must
     def test_raw_data_frame(self):
         @wptserve.handlers.handler
         def handler(request, response):
@@ -302,6 +309,7 @@ class TestH2Response(TestUsingH2Server):
 
         assert resp.content == b'Hello world'
 
+    @pytest.mark.must
     def test_raw_header_continuation_frame(self):
         @wptserve.handlers.handler
         def handler(request, response):
