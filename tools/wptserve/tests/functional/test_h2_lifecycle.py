@@ -64,6 +64,33 @@ def h2_server():
         server.stop()
 
 
+@pytest.fixture
+def h2_ws_server():
+    # Like h2_server, but with ws_doc_root pointing at the local ws_handlers/
+    # directory so extended-CONNECT (websocket-over-H2) requests can be
+    # dispatched to a real pywebsocket handler.
+    server = wptserve.server.WebTestHttpd(
+        host="localhost",
+        port=0,
+        use_ssl=True,
+        doc_root=doc_root,
+        ws_doc_root=os.path.join(os.path.dirname(__file__), "ws_handlers"),
+        key_file=os.path.join(
+            localpaths.repo_root, "tools", "certs", "web-platform.test.key"
+        ),
+        certificate=os.path.join(
+            localpaths.repo_root, "tools", "certs", "web-platform.test.pem"
+        ),
+        handler_cls=wptserve.server.Http2WebTestRequestHandler,
+        http2=True,
+    )
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
 # -- Invalid extended CONNECT :protocol --------------------------------------
 #
 # RFC 8441 reserves the :protocol pseudo-header for the protocol being
@@ -1287,4 +1314,81 @@ def test_headers_frame_split_across_tcp_writes(h2_server):
     assert body == b"hello-split-headers", (
         "Server did not reassemble a HEADERS frame split across two TCP "
         f"writes. Events: {[type(e).__name__ for e in events]}"
+    )
+
+
+# -- WebSocket-over-H2 handler exception orphans the stream ------------------
+#
+# _stream_ws_thread runs the ws session via dispatcher.transfer_data, wrapped
+# only by `except (StreamClosedError, ProtocolError)` (server.py ~743). Any
+# other exception from the ws handler propagates out of the worker, which then
+# dies — running the pump-join finally but sending no RST_STREAM and no
+# response on the stream. This is the websocket analog of
+# test_handle_data_exception_does_not_orphan_stream: the connection survives
+# (the recv loop reaps the dead worker) but the stream is orphaned, so the
+# client waits forever. RFC 9113 §5.4.2 expects a stream error to be signalled
+# with RST_STREAM.
+#
+# The raise_wsh.py handler records (via WPT_WS_ORPHAN_MARKER) that its data
+# phase actually ran, so the test can distinguish a genuine handler exception
+# from a handshake failure (which would xfail for the wrong reason).
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "A websocket-over-H2 handler that raises anything other than "
+        "StreamClosedError / ProtocolError escapes _stream_ws_thread's narrow "
+        "except (server.py ~743), killing the worker with no RST_STREAM and "
+        "no response on the stream. The connection survives but the stream is "
+        "orphaned, so the client hangs. RFC 9113 §5.4.2 expects a stream "
+        "error to be signalled with RST_STREAM."
+    ),
+)
+def test_ws_handler_exception_resets_stream(h2_ws_server, tmp_path, monkeypatch):
+    marker = tmp_path / "reached"
+    monkeypatch.setenv("WPT_WS_ORPHAN_MARKER", str(marker))
+
+    with H2RawClient(h2_ws_server.host, h2_ws_server.port) as client:
+        # Receive the server's SETTINGS (which include ENABLE_CONNECT_PROTOCOL)
+        # so the client's h2 will allow an extended CONNECT.
+        client.drain_events(
+            until_predicate=lambda e: isinstance(e, RemoteSettingsChanged),
+            total_timeout=2.0,
+        )
+        client.conn.send_headers(
+            stream_id=1,
+            headers=[
+                (":method", "CONNECT"),
+                (":protocol", "websocket"),
+                (":scheme", "https"),
+                (":authority", f"{client.host}:{client.port}"),
+                (":path", "/raise"),
+                ("sec-websocket-version", "13"),
+            ],
+            end_stream=False,
+        )
+        client.send_outbound()
+
+        events = client.drain_events(
+            until_predicate=lambda e: isinstance(e, StreamReset) and e.stream_id == 1,
+            total_timeout=3.0,
+        )
+
+    # Precondition: the handshake succeeded and the ws handler's data phase ran
+    # and raised. If the marker is missing the handshake failed, so the test
+    # would be exercising the wrong path — fail loudly rather than xfail for
+    # the wrong reason.
+    assert marker.exists(), (
+        "ws handler's web_socket_transfer_data was never reached — the "
+        "handshake failed, so this test is not exercising the orphan path. "
+        f"Events: {[type(e).__name__ for e in events]}"
+    )
+    resets = [e for e in events if isinstance(e, StreamReset) and e.stream_id == 1]
+    assert resets, (
+        "ws handler raised, but the server sent no RST_STREAM on stream 1 — "
+        "the stream is orphaned and the client would hang. _stream_ws_thread "
+        "catches only (StreamClosedError, ProtocolError) around "
+        f"transfer_data, so other exceptions kill the worker silently. Events: "
+        f"{[type(e).__name__ for e in events]}"
     )
