@@ -18,6 +18,9 @@ import pytest
 import localpaths  # noqa: F401  # populates sys.path
 
 import wptserve.logger
+from h2.config import H2Configuration
+from h2.connection import H2Connection
+from wptserve import server as server_module
 from wptserve.server import Http2WebTestRequestHandler
 
 
@@ -30,6 +33,67 @@ def _bare_handler():
     handler = Http2WebTestRequestHandler.__new__(Http2WebTestRequestHandler)
     handler.logger = wptserve.logger.get_logger()
     return handler
+
+
+class _H2EventCapture:
+    """Drive a client/server H2Connection pair and harvest the events
+    the server emits.
+
+    Using real h2 state machines on both sides means whatever events
+    h2 actually emits today (and only those) are what the test sees.
+    If h2's event vocabulary changes in a future vendor bump, tests
+    that rely on the harvested events will fail loudly rather than
+    silently passing on stale assumptions.
+
+    Each `send_*` method drives the client, ships its outbound bytes
+    to the server, and accumulates the server's resulting events into
+    `self.events`.
+    """
+
+    def __init__(self):
+        self.client = H2Connection(config=H2Configuration(client_side=True))
+        self.server = H2Connection(config=H2Configuration(client_side=False))
+        self.events = []
+
+        self.client.initiate_connection()
+        self.server.initiate_connection()
+        self._pump_client_to_server()                       # preface + SETTINGS
+        self.client.receive_data(self.server.data_to_send())  # server SETTINGS + ack
+        self._pump_client_to_server()                       # client's SETTINGS ack
+        # Drop the SETTINGS handshake events — tests care about the
+        # request-level events that follow.
+        self.events = []
+
+    def _pump_client_to_server(self):
+        data = self.client.data_to_send()
+        if data:
+            self.events += self.server.receive_data(data)
+
+    def send_headers(self, stream_id, end_stream=False, extra_headers=()):
+        self.client.send_headers(
+            stream_id=stream_id,
+            headers=[
+                (":method", "GET"),
+                (":scheme", "https"),
+                (":authority", "localhost"),
+                (":path", "/"),
+                *extra_headers,
+            ],
+            end_stream=end_stream,
+        )
+        self._pump_client_to_server()
+
+    def send_data(self, stream_id, data, end_stream=False):
+        self.client.send_data(stream_id=stream_id, data=data, end_stream=end_stream)
+        self._pump_client_to_server()
+
+    def reset_stream(self, stream_id):
+        self.client.reset_stream(stream_id=stream_id)
+        self._pump_client_to_server()
+
+    def close_connection(self, last_stream_id=0):
+        self.client.close_connection(last_stream_id=last_stream_id)
+        self._pump_client_to_server()
 
 
 @pytest.mark.xfail(
