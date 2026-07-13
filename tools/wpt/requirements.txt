@@ -1,4 +1,4 @@
-requests==2.32.3
-types-requests==2.32.0.20241016
+requests==2.32.5
+types-requests==2.32.4.20260107
 pyyaml==6.0.3
-types-pyyaml==6.0.12.20241230
+types-pyyaml==6.0.12.20250915

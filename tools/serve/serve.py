@@ -20,7 +20,7 @@ from collections import defaultdict, OrderedDict
 from io import IOBase
 from itertools import chain, product
 from html5lib import html5parser
-from typing import ClassVar, List, Optional, Set, Tuple
+from typing import Any, ClassVar, List, Mapping, Optional, Set, Tuple
 
 from localpaths import repo_root  # type: ignore
 
@@ -1413,7 +1413,7 @@ class ConfigBuilder(config.ConfigBuilder):
     This subclasses wptserve.config.ConfigBuilder to add serve config options.
     """
 
-    _default = {
+    _default: Mapping[str, Any] = {
         "browser_host": "web-platform.test",
         "alternate_hosts": {
             "alt": "not-web-platform.test"

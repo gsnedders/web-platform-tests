@@ -597,7 +597,7 @@ class SingleTestSource(TestQueueBuilder):
         groups = []
         for (subsuite, test_type), tests in tests_by_type.items():
             processes = self.kwargs["processes"]
-            queues: List[Deque[TestGroup]] = [deque([]) for _ in range(processes)]
+            queues: List[Deque[wpttest.Test]] = [deque([]) for _ in range(processes)]
             metadatas = [self.group_metadata({}) for _ in range(processes)]
             for test in tests:
                 idx = hash(test.id) % processes

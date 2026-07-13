@@ -1,2 +1,2 @@
 -r yaml/requirements.txt
-pydantic==2.13.0
+pydantic==2.13.4

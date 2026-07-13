@@ -126,7 +126,7 @@ class ConfigBuilder:
                          to default_config_cls
     """
 
-    _default = {
+    _default: Mapping[str, Any] = {
         "browser_host": "localhost",
         "alternate_hosts": {},
         "doc_root": os.path.dirname("__file__"),
@@ -182,7 +182,7 @@ class ConfigBuilder:
                  **kwargs):
 
         self._logger = logger
-        self._data = self._default.copy()
+        self._data = dict(self._default)
         self._ssl_env = None
 
         self._config_cls = config_cls or self.default_config_cls

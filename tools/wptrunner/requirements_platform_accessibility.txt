@@ -1,4 +1,4 @@
-comtypes==1.4.11; sys_platform == 'win32'
-PyGObject==3.50.1; sys_platform == 'linux'
+comtypes==1.4.16; sys_platform == 'win32'
+PyGObject==3.54.5; sys_platform == 'linux'
 pyobjc-framework-Accessibility==11.1; sys_platform == 'darwin'
 pyobjc-framework-ApplicationServices==11.1; sys_platform == 'darwin'

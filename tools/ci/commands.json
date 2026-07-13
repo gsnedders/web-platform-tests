@@ -104,7 +104,17 @@
     "help": "Regenerate tools/constraints.txt (and its supporting pyproject.toml) via uv",
     "virtualenv": true,
     "requirements": [
-      "uv/requirements_update_constraints.txt"
+        "uv/requirements_update_constraints.txt"
+    ]
+  },
+  "update-pins": {
+    "path": "uv/update_pins.py",
+    "parser": "get_parser",
+    "script": "run",
+    "help": "Sync tools/**/requirements*.txt pins with tools/constraints.txt",
+    "virtualenv": true,
+    "requirements": [
+      "uv/requirements_update_pins.txt"
     ]
   }
 }

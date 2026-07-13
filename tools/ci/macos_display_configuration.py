@@ -51,11 +51,13 @@ def calculate_mode_similarity_score(
     current_pixel_size = get_pixel_size(current_mode)
     current_refresh_rate = CGDisplayModeGetRefreshRate(current_mode)
     current_flags = CGDisplayModeGetIOFlags(current_mode)
+    assert isinstance(current_flags, int)
 
     size = get_size(mode)
     pixel_size = get_pixel_size(mode)
     refresh_rate = CGDisplayModeGetRefreshRate(mode)
     flags = CGDisplayModeGetIOFlags(mode)
+    assert isinstance(flags, int)
 
     differences = 0
 

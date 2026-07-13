@@ -164,6 +164,7 @@ def get_port(host: str = '') -> int:
     while True:
         free_socket = _open_socket(host, 0)
         port = free_socket.getsockname()[1]
+        assert isinstance(port, int)
         free_socket.close()
         if not is_bad_port(port):
             break
