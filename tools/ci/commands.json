@@ -97,5 +97,14 @@
     "requirements": [
       "requirements_update_codeowners.txt"
     ]
+  },
+  "update-constraints": {
+    "path": "uv/regenerate.py",
+    "script": "run",
+    "help": "Regenerate tools/constraints.txt (and its supporting pyproject.toml) via uv",
+    "virtualenv": true,
+    "requirements": [
+      "uv/requirements_update_constraints.txt"
+    ]
   }
 }
