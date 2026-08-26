@@ -1249,7 +1249,8 @@ class PytestProtocol(ConnectionlessProtocol):
         An HTTP request to an invalid path that results in a 404 is
         proof enough to us that the server is alive and kicking.
         """
-        conn = HTTPConnection(self.browser.host, self.browser.port)
+        conn = HTTPConnection(self.browser.host, self.browser.port,
+                              timeout=self.executor.liveness_timeout)
         try:
             conn.request("HEAD", "/invalid")
             res = conn.getresponse()

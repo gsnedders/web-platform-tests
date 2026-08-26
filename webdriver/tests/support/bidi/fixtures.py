@@ -66,20 +66,21 @@ async def bidi_session(capabilities, configuration):
 
     try:
         session = global_fixtures.get_current_session()
-        session.start()
+        with session.deadline(configuration.get("timeout")):
+            session.start()
 
-        try:
-            await session.bidi_session.start()
+            try:
+                await session.bidi_session.start()
 
-            # Enforce a fixed default window size and position
-            if session.capabilities.get("setWindowRect"):
-                session.window.size = defaults.WINDOW_SIZE
-                session.window.position = defaults.WINDOW_POSITION
+                # Enforce a fixed default window size and position
+                if session.capabilities.get("setWindowRect"):
+                    session.window.size = defaults.WINDOW_SIZE
+                    session.window.position = defaults.WINDOW_POSITION
 
-            yield session.bidi_session
+                yield session.bidi_session
 
-        finally:
-            await session.bidi_session.end()
+            finally:
+                await session.bidi_session.end()
 
         cleanup_session(session)
 

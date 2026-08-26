@@ -10,6 +10,9 @@ if ./wpt test-jobs --includes tools_unittest; then
     cd tools
     tox -f "$TOXENV"
     cd $WPT_ROOT
+    cd tools/webdriver
+    tox -f "$TOXENV"
+    cd $WPT_ROOT
 else
     echo "Skipping tools unittest"
 fi

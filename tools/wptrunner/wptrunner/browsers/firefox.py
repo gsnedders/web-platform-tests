@@ -1054,7 +1054,8 @@ class FirefoxPytestBrowser(WebDriverBrowser):
                 self.logger.debug("Waiting for WebDriver session to end")
                 try:
                     self.logger.debug(f"Connecting to http://{self.host}:{self.port}/status")
-                    conn = HTTPConnection(self.host, self.port)
+                    conn = HTTPConnection(self.host, self.port,
+                                          timeout=max(1, end_time - time.time()))
                     conn.request("GET", "/status")
                     res = conn.getresponse()
                     self.logger.debug(f"Got response from http://{self.host}:{self.port}/status")

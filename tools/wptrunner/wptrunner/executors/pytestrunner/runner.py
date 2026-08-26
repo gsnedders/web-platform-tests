@@ -52,7 +52,8 @@ def run(path, server_config, session_config, timeout=0):
 
             config = session_config.copy()
             config["wptserve"] = server_config.as_dict()
-            config["timeout"] = timeout
+            # 0 means "no timeout" to run(); store None so every consumer sees one sentinel.
+            config["timeout"] = timeout or None
 
             with open(config_path, "w") as f:
                 json.dump(config, f)

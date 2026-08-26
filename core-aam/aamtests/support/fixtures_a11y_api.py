@@ -16,10 +16,10 @@ def pid_from(capabilities):
 
 
 @pytest.fixture
-def default_timeout(full_configuration):
-    if not full_configuration["timeout"] or full_configuration["timeout"] == 0:
+def default_timeout(configuration):
+    if not configuration["timeout"]:
         return 60
-    return full_configuration["timeout"] * 0.5
+    return configuration["timeout"] * 0.5
 
 
 @pytest.fixture

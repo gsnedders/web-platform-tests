@@ -64,7 +64,8 @@ def capabilities(request, default_capabilities):
 
 @pytest.fixture
 def http(configuration):
-    return HTTPRequest(configuration["host"], configuration["port"])
+    return HTTPRequest(configuration["host"], configuration["port"],
+                       timeout=configuration.get("timeout"))
 
 
 @pytest.fixture(scope="session")
@@ -75,6 +76,7 @@ def full_configuration():
     port -  WebDriver server port.
     capabilities - Capabilities passed when creating the WebDriver session
     timeout_multiplier - Multiplier for timeout values
+    timeout - Timeout budget in seconds, or None for no timeout
     webdriver - Dict with keys `binary`: path to webdriver binary, and
                 `args`: Additional command line arguments passed to the webdriver
                 binary. This doesn't include all the required arguments e.g. the

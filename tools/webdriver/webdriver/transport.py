@@ -1,8 +1,10 @@
 # mypy: allow-untyped-defs
 
+import contextlib
 import json
 import select
 import socket
+import time
 
 from http.client import HTTPConnection
 from typing import Dict, List, Mapping, Sequence, Tuple
@@ -14,6 +16,25 @@ from . import error
 
 
 missing = object()
+
+# Sentinel for the default value of every per-call `timeout` parameter,
+# mirroring http.client's _GLOBAL_DEFAULT_TIMEOUT convention. It means "no
+# explicit value here -- defer to the active deadline() scope, or, failing
+# that, socket.getdefaulttimeout()". This is distinct from an explicit
+# `None`, which means "no timeout, block forever" and overrides any active
+# deadline. Named distinctly from `timeout` (rather than reusing that name
+# for a module global) because every method below takes a parameter named
+# `timeout`, which would shadow a same-named module global inside the
+# method body.
+DEFAULT_TIMEOUT: object = object()
+
+# Floor applied to the remaining time under an active deadline() so that an
+# expired deadline still resolves to a small positive timeout rather than a
+# literal 0. socket.settimeout(0) means non-blocking mode, not "block with a
+# very short timeout" -- using it would change the exception callers see
+# (BlockingIOError instead of socket.timeout). This keeps expired deadlines
+# in ordinary blocking-with-timeout mode.
+_MIN_TIMEOUT = 1e-3
 
 
 class ResponseHeaders(Mapping[str, str]):
@@ -129,12 +150,17 @@ class HTTPWireProtocol:
         """
         Construct interface for communicating with the remote server.
 
-        :param url: URL of remote WebDriver server.
-        :param wait: Duration to wait for remote to appear.
+        :param host: Hostname of remote WebDriver server.
+        :param port: Port of remote WebDriver server.
+        :param url_prefix: Prefix for request URLs.
         """
         self.host = host
         self.port = port
         self.url_prefix = url_prefix
+        # Absolute deadline in nanoseconds (time.monotonic_ns()), or None
+        # when no deadline() scope is active. Never exposed directly; only
+        # deadline() mutates it, and only _effective_timeout() reads it.
+        self._deadline = None
         self._conn = None
         self._last_request_is_blocked = False
 
@@ -151,14 +177,83 @@ class HTTPWireProtocol:
                 pass
         self._conn = None
 
+    @staticmethod
+    def _deadline_from_timeout(timeout):
+        """Convert a relative timeout in seconds to an absolute deadline in
+        nanoseconds on the monotonic clock. Returns None for a None timeout."""
+        if timeout is None:
+            return None
+        return time.monotonic_ns() + int(timeout * 1e9)
+
+    def _timeout_from_deadline(self):
+        """Convert the stored absolute deadline to a relative number of
+        seconds remaining, or None when no deadline is set. Floors at
+        _MIN_TIMEOUT rather than 0, so an expired deadline still yields a
+        small positive timeout instead of a non-blocking socket."""
+        if self._deadline is None:
+            return None
+        remaining_ns = self._deadline - time.monotonic_ns()
+        remaining = remaining_ns / 1e9
+        return max(remaining, _MIN_TIMEOUT)
+
+    def _effective_timeout(self, timeout):
+        """Resolve the three-way per-call `timeout` parameter to a plain
+        float | None, ready to hand to a socket API.
+
+        - DEFAULT_TIMEOUT (the sentinel): defer to the active deadline()'s
+          remaining time if one is set, else socket.getdefaulttimeout().
+        - None: explicitly no timeout -- block forever, overriding any
+          active deadline.
+        - a float: that many seconds, also overriding any active deadline.
+        """
+        if timeout is DEFAULT_TIMEOUT:
+            remaining = self._timeout_from_deadline()
+            if remaining is not None:
+                return remaining
+            return socket.getdefaulttimeout()
+        return timeout
+
+    @contextlib.contextmanager
+    def deadline(self, timeout):
+        """Scope a relative timeout, in seconds, as the active deadline for
+        the duration of the `with` block.
+
+        Ordinary per-call `timeout=DEFAULT_TIMEOUT` requests made within the
+        block resolve against this deadline. A nested deadline() is clamped
+        so it can only tighten, never lengthen, any enclosing deadline. The
+        previous deadline is always restored on exit, including when the
+        block raises.
+
+        :param timeout: Relative number of seconds from now, or None for no
+            deadline (blocks forever, unless a tighter deadline is already
+            active).
+        """
+        previous_deadline = self._deadline
+        new_deadline = self._deadline_from_timeout(timeout)
+
+        if previous_deadline is None:
+            clamped_deadline = new_deadline
+        elif new_deadline is None:
+            # An infinite child under a real parent must not lengthen it.
+            clamped_deadline = previous_deadline
+        else:
+            clamped_deadline = min(previous_deadline, new_deadline)
+
+        self._deadline = clamped_deadline
+        try:
+            yield
+        finally:
+            self._deadline = previous_deadline
+
     @property
     def connection(self):
         """Gets the current HTTP connection, or lazily creates one."""
         if not self._conn:
-            conn_kwargs = {}
-            # We are not setting an HTTP timeout other than the default when the
-            # connection its created. The send method has a timeout value if needed.
-            self._conn = HTTPConnection(self.host, self.port, **conn_kwargs)
+            self._conn = HTTPConnection(self.host, self.port)
+            # Reconnecting implicitly from send() would let a socket appear
+            # out from under a caller who already checked conn.sock; connect
+            # explicitly in _request() instead.
+            self._conn.auto_open = 0
 
         return self._conn
 
@@ -176,7 +271,7 @@ class HTTPWireProtocol:
              headers=None,
              encoder=json.JSONEncoder,
              decoder=json.JSONDecoder,
-             timeout=None,
+             timeout=DEFAULT_TIMEOUT,
              **codec_kwargs):
         """
         Send a command to the remote.
@@ -205,8 +300,13 @@ class HTTPWireProtocol:
             ``json.JSONEncoder`` unless specified.
         :param decoder: JSON decoder class, which defaults to
             ``json.JSONDecoder`` unless specified.
-        :param timeout: Optional timeout for the underlying socket. `None` will
-            retain the existing timeout.
+        :param timeout: Optional timeout for the underlying socket, in seconds.
+            Defaults to ``DEFAULT_TIMEOUT``, which defers to the remaining time
+            under an active ``deadline()`` scope, or, absent one, to
+            ``socket.getdefaulttimeout()``. Pass `None` for no timeout at all
+            (blocks forever), which overrides any active deadline. Pass a
+            `float` for an explicit number of seconds, which also overrides
+            any active deadline.
         :param codec_kwargs: Surplus arguments passed on to `encoder`
             and `decoder` on construction.
 
@@ -230,7 +330,7 @@ class HTTPWireProtocol:
         response = self._request(method, uri, payload, headers, timeout=timeout)
         return Response.from_http(response, decoder=decoder, **codec_kwargs)
 
-    def _request(self, method, uri, payload, headers=None, timeout=None):
+    def _request(self, method, uri, payload, headers=None, timeout=DEFAULT_TIMEOUT):
         if isinstance(payload, str):
             payload = payload.encode("utf-8")
 
@@ -243,31 +343,30 @@ class HTTPWireProtocol:
         if self._last_request_is_blocked or self._has_unread_data():
             self.close()
 
-        # When the timeout triggers, the TestRunnerManager thread will reuse
-        # this connection to check if the WebDriver its alive and we may end
-        # raising an httplib.CannotSendRequest exception if the WebDriver is
-        # not responding and this httplib.request() call is blocked on the
-        # runner thread. We use the boolean below to check for that and restart
-        # the connection in that case.
         self._last_request_is_blocked = True
-        self.connection.request(method, url, payload, headers)
-
-        # `timeout` for this request has to be set just before calling
-        # `getresponse()` and the previous value restored just after that,
-        # even on exception raised. Initialize `previous_timeout` to the global
-        # default socket timeout in case the lazily created socket doesn't exist
-        # before `getresponse()`.
-        previous_timeout = socket.getdefaulttimeout()
         try:
-            if timeout and self.connection.sock:
-                previous_timeout = self.connection.sock.gettimeout()
-                self.connection.sock.settimeout(timeout)
-            response = self.connection.getresponse()
-        finally:
-            if timeout and self.connection.sock:
-                self.connection.sock.settimeout(previous_timeout)
+            effective = self._effective_timeout(timeout)
 
-        self._last_request_is_blocked = False
+            conn = self.connection
+            conn.timeout = effective
+            if conn.sock is None:
+                conn.connect()
+
+            sock = conn.sock
+            previous_timeout = sock.gettimeout()
+            sock.settimeout(effective)
+
+            try:
+                conn.request(method, url, payload, headers)
+                response = conn.getresponse()
+            finally:
+                # Only restore if this is still the connection's socket: a concurrent
+                # close() may have replaced it, and restoring then would write to
+                # another request's socket.
+                if conn.sock is sock:
+                    sock.settimeout(previous_timeout)
+        finally:
+            self._last_request_is_blocked = False
         return response
 
     def _has_unread_data(self):

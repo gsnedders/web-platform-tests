@@ -1143,12 +1143,22 @@ class WebDriverProtocol(Protocol):
         if not self.webdriver:
             return False
         try:
-            # Get a simple property over the connection, with 2 seconds of timeout
-            # that should be more than enough to check if the WebDriver its
-            # still alive, and allows to complete the check within the testrunner
-            # 5 seconds of extra_timeout we have as maximum to end the test before
-            # the external timeout from testrunner triggers.
-            self.webdriver.send_session_command("GET", "window/handles", timeout=2)
+            # Get a simple property over the connection, with liveness_timeout
+            # seconds of timeout that should be more than enough to check if
+            # the WebDriver its still alive, and allows to complete the check
+            # within the testrunner extra_timeout we have as maximum to end
+            # the test before the external timeout from testrunner triggers.
+            #
+            # This must keep passing an explicit `timeout=` override (rather
+            # than defaulting to DEFAULT_TIMEOUT): is_alive() runs on the main
+            # thread while run_func() may still be on the worker thread inside
+            # an active deadline() scope on this same shared Session. An
+            # explicit timeout always overrides the ambient deadline, so this
+            # call never reads (or races on) the worker thread's deadline.
+            # Note that because a remote end serialises commands per session,
+            # a busy-but-healthy browser may still fail this probe if its
+            # command queue is backed up past the liveness_timeout.
+            self.webdriver.send_session_command("GET", "window/handles", timeout=self.executor.liveness_timeout)
         except (OSError, webdriver_error.WebDriverException, socket.timeout,
                 webdriver_error.UnknownErrorException,
                 webdriver_error.InvalidSessionIdException):
@@ -1207,15 +1217,27 @@ class WebDriverRun(TimedRunner):
 
     def run_func(self):
         try:
-            self.result = True, self.func(self.protocol, self.url, self.timeout)
+            # Scope the HTTP deadline to the span this worker thread runs
+            # under, using the same budget set_timeout() arms the browser-side
+            # script timeout with (plus slack for the round-trip).
+            http_timeout = self.timeout + 1.5 * self.extra_timeout if self.timeout else None
+            with self.protocol.webdriver.deadline(http_timeout):
+                self.result = True, self.func(self.protocol, self.url, self.timeout)
         except (webdriver_error.TimeoutException, webdriver_error.ScriptTimeoutException):
             self.result = False, ("EXTERNAL-TIMEOUT", None)
         except Exception as e:
             status, message = None, None
             if isinstance(e, socket.timeout):
-                # Checking if the browser is alive in this case is likely to hang,
-                # so mark it as a CRASH unconditionally.
-                status = "CRASH"
+                # Distinguish a socket timeout from our own deadline expiring
+                # (EXTERNAL-TIMEOUT) vs a genuine hang (CRASH). If the deadline
+                # is active and nearly expired (within _MIN_TIMEOUT), the timeout
+                # likely came from the deadline, not a genuine hang.
+                from webdriver.transport import _MIN_TIMEOUT
+                remaining = self.protocol.webdriver._timeout_from_deadline()
+                if remaining is not None and remaining <= _MIN_TIMEOUT * 2:
+                    status = "EXTERNAL-TIMEOUT"
+                else:
+                    status = "CRASH"
             elif isinstance(e, webdriver_error.WebDriverException):
                 # In a multiple processes architecture, the browser process might be
                 # alive even when the renderer process has crashed.

@@ -44,20 +44,21 @@ async def session(capabilities, configuration):
 
     try:
         session = global_fixtures.get_current_session()
-        session.start()
+        with session.deadline(configuration.get("timeout")):
+            session.start()
 
-        # Enforce a fixed default window size and position
-        if session.capabilities.get("setWindowRect"):
-            session.window.size = defaults.WINDOW_SIZE
-            session.window.position = defaults.WINDOW_POSITION
+            # Enforce a fixed default window size and position
+            if session.capabilities.get("setWindowRect"):
+                session.window.size = defaults.WINDOW_SIZE
+                session.window.position = defaults.WINDOW_POSITION
 
-        # Set default timeouts
-        multiplier = configuration["timeout_multiplier"]
-        session.timeouts.implicit = IMPLICIT_WAIT_TIMEOUT * multiplier
-        session.timeouts.page_load = PAGE_LOAD_TIMEOUT * multiplier
-        session.timeouts.script = SCRIPT_TIMEOUT * multiplier
+            # Set default timeouts
+            multiplier = configuration["timeout_multiplier"]
+            session.timeouts.implicit = IMPLICIT_WAIT_TIMEOUT * multiplier
+            session.timeouts.page_load = PAGE_LOAD_TIMEOUT * multiplier
+            session.timeouts.script = SCRIPT_TIMEOUT * multiplier
 
-        yield session
+            yield session
 
         cleanup_session(session)
 

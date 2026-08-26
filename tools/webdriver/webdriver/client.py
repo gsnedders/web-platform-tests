@@ -568,7 +568,13 @@ class Session:
             self.extension = None
             self.transport.close()
 
-    def send_command(self, method, url, body=None, timeout=None):
+    def deadline(self, timeout):
+        """Scope a relative HTTP timeout budget, in seconds, for the
+        duration of a `with` block. See `transport.HTTPWireProtocol.deadline`.
+        """
+        return self.transport.deadline(timeout)
+
+    def send_command(self, method, url, body=None, timeout=transport.DEFAULT_TIMEOUT):
         """
         Send a command to the remote end and validate its success.
 
@@ -627,7 +633,7 @@ class Session:
 
         return value
 
-    def send_session_command(self, method, uri, body=None, timeout=None):
+    def send_session_command(self, method, uri, body=None, timeout=transport.DEFAULT_TIMEOUT):
         """
         Send a command to an established session and validate its success.
 

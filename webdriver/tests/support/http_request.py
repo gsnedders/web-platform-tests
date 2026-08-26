@@ -5,9 +5,10 @@ from http.client import HTTPConnection
 
 
 class HTTPRequest(object):
-    def __init__(self, host: str, port: int):
+    def __init__(self, host: str, port: int, timeout=None):
         self.host = host
         self.port = port
+        self.timeout = timeout
 
     def head(self, path: str):
         return self._request("HEAD", path)
@@ -32,7 +33,7 @@ class HTTPRequest(object):
             if isinstance(payload, str):
                 payload = body.encode("utf-8")
 
-        conn = HTTPConnection(self.host, self.port)
+        conn = HTTPConnection(self.host, self.port, timeout=self.timeout)
         try:
             conn.request(method, path, payload)
             yield conn.getresponse()

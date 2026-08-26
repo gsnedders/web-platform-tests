@@ -271,6 +271,7 @@ class TestExecutor:
     __metaclass__ = ABCMeta
 
     test_type: ClassVar[str]
+
     # convert_result is a class variable set to a callable converter
     # (e.g. reftest_result_converter) converting from an instance of
     # URLManifestItem (e.g. RefTest) + type-dependent results object +
@@ -278,12 +279,40 @@ class TestExecutor:
     # SubtestResult. For now, any callable is accepted. TODO: Make this type
     # stricter when more of the surrounding code is annotated.
     convert_result: ClassVar[Callable[..., Any]]
-    supports_testdriver = False
-    supports_jsshell = False
-    # Extra timeout to use after internal test timeout at which the harness
-    # should force a timeout
-    extra_timeout = 5  # seconds
 
+    supports_testdriver: ClassVar[bool] = False
+
+    supports_jsshell: ClassVar[bool] = False
+
+    # How much slack to add on top of a test's own timeout at each layer the
+    # harness uses to supervise it. The harness watches a running test at
+    # several layers, each willing to wait a little longer than the one inside
+    # it, so that whichever inner layer can still explain what went wrong gets
+    # to report before a blunter outer layer more aggressively handles the
+    # timeout. Each layer's deadline is the test's timeout plus a multiple of
+    # this value, which is what keeps them ordered:
+    #
+    #   +0x  if the browser detects a timeout itself; only testharness.js tests
+    #        check this, via their in-page timer.
+    #   +1x  the timeout the executor sets for script execution: how long the
+    #        browser runs the test's script before it stops and returns a
+    #        timeout response, rather than leaving the executor waiting for a
+    #        reply forever.
+    #   +2x  the executor's own backstop: if none of the above produced a
+    #        result, the executor stops waiting on the browser and takes
+    #        over, checking for itself whether the browser is
+    #        alive-but-stuck or has crashed (TimedRunner.run(), in this
+    #        file).
+    #   +3x  if even the executor is hung, the test runner gives up and
+    #        tears down its subprocess and the browser, then spawns fresh
+    #        replacements for the next test (TestRunnerManager.restart_runner(),
+    #        in testrunner.py).
+    extra_timeout: ClassVar[int] = 5  # seconds
+
+    # Timeout for a liveness probe (e.g. is_alive()) used to distinguish a
+    # slow-but-alive browser from a crashed one; must stay comfortably under
+    # extra_timeout so the check can complete before the external timeout fires.
+    liveness_timeout: ClassVar[int] = 2  # seconds
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  debug_info=None, subsuite=None, **kwargs):
