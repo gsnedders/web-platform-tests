@@ -4,6 +4,7 @@ import contextlib
 import json
 import select
 import socket
+import threading
 import time
 
 from http.client import HTTPConnection
@@ -163,6 +164,7 @@ class HTTPWireProtocol:
         self._deadline = None
         self._conn = None
         self._last_request_is_blocked = False
+        self._request_lock = threading.Lock()
 
     def __del__(self):
         self.close()
@@ -340,10 +342,11 @@ class HTTPWireProtocol:
 
         url = self.url(uri)
 
-        if self._last_request_is_blocked or self._has_unread_data():
-            self.close()
+        with self._request_lock:
+            if self._last_request_is_blocked or self._has_unread_data():
+                self.close()
+            self._last_request_is_blocked = True
 
-        self._last_request_is_blocked = True
         try:
             effective = self._effective_timeout(timeout)
 
