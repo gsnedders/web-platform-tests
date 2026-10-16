@@ -127,6 +127,46 @@ with set_test_filter().</p>
   idlArray.set_test_filter(() => true);
   idlArray.test();
 })();
+
+// Excluding members doesn't change the keys expected from the default toJSON
+(() => {
+  Object.defineProperty(window, "Foo", {
+    enumerable: false,
+    writable: true,
+    configurable: true,
+    value: function Foo() {}
+  });
+  Foo.prototype.toJSON = function toJSON() {
+    if (!(this instanceof Foo)) {
+      throw new TypeError("Illegal invocation");
+    }
+    return { b: 1 };
+  };
+  Object.defineProperty(Foo, "prototype", { writable: false });
+
+  const idlArray = new IdlArray();
+  idlArray.add_idls(`
+    [Exposed=Window] interface FooParent {
+      [Default] object toJSON();
+      attribute long a;
+    };
+    [Exposed=Window] interface Foo : FooParent {
+      [Default] object toJSON();
+      attribute long b;
+    };`);
+  idlArray.add_objects({ Foo: ["new Foo()"] });
+  // should fail (the output lacks the filtered attribute "a", which is still expected)
+  idlArray.set_test_filter((name, member) => name === "Foo" && member === "toJSON");
+  idlArray.test();
+})();
+
+// An excluded interface isn't checked for being absent where it isn't exposed
+(() => {
+  const idlArray = new IdlArray();
+  idlArray.add_idls(`[Exposed=Worker] interface G {};`);
+  idlArray.set_test_filter(() => false);
+  idlArray.test();
+})();
 </script>
 <script type="text/json" id="expected">
 {
@@ -269,6 +309,24 @@ with set_test_filter().</p>
     },
     {
       "name": "F interface: operation child()",
+      "status_string": "PASS",
+      "properties": {},
+      "message": null
+    },
+    {
+      "name": "Foo interface: default toJSON operation on new Foo()",
+      "status_string": "FAIL",
+      "properties": {},
+      "message": "assert_true: property \"a\" should be present in the output of Foo.prototype.toJSON() expected true got false"
+    },
+    {
+      "name": "Foo interface: new Foo() must inherit property \"toJSON()\" with the proper type",
+      "status_string": "PASS",
+      "properties": {},
+      "message": null
+    },
+    {
+      "name": "Foo interface: operation toJSON()",
       "status_string": "PASS",
       "properties": {},
       "message": null
